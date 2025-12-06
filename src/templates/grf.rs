@@ -1,0 +1,1220 @@
+/// GRF (Generalised Random Forests) project templates
+///
+/// returns a vector of (filename, content) tuples
+
+pub fn get_template_files(project_name: &str) -> Vec<(String, String)> {
+    vec![
+        ("study.toml".to_string(), study_toml(project_name)),
+        ("README.md".to_string(), readme(project_name)),
+        (".gitignore".to_string(), gitignore()),
+        ("01-data-prep.R".to_string(), script_01()),
+        ("02-wide-format.R".to_string(), script_02()),
+        ("03-causal-forest.R".to_string(), script_03()),
+        ("04-heterogeneity.R".to_string(), script_04()),
+        ("05-policy-tree.R".to_string(), script_05()),
+        ("06-positivity.R".to_string(), script_06()),
+        ("07-tables.R".to_string(), script_07()),
+        ("08-plots.R".to_string(), script_08()),
+    ]
+}
+
+fn study_toml(project_name: &str) -> String {
+    format!(
+        r####"# {project_name} - GRF study configuration
+# edit this file with your study-specific settings
+
+[paths]
+# path to source data (read-only)
+pull_data = "/path/to/your/source/data"
+# path to save outputs (outside git)
+push_mods = "/path/to/your/output/directory"
+
+[waves]
+# three-wave panel design: baseline, exposure, outcome
+baseline = "Time 11"
+exposure = ["Time 12"]
+outcome  = "Time 13"
+
+[exposure]
+# your exposure variable (without wave prefix)
+name = "your_exposure_variable"
+reverse_score = false
+# cutpoints for binary threshold [lower, upper]
+binary_cutpoints = [0, 5]
+# threshold direction: ">" or "<"
+threshold_label = ">"
+scale_range = "scale range 0-10"
+
+[outcomes]
+# outcome variables to analyse (without wave prefix)
+vars = [
+  "outcome_1",
+  "outcome_2"
+]
+# outcomes to reverse score (empty if none)
+reverse_score = []
+# outcomes to flip direction for interpretation
+flip = []
+
+[baseline]
+# baseline covariates for confounding adjustment
+vars = [
+  "age",
+  "male_binary",
+  "education_level_coarsen",
+  "employed_binary",
+  "partner_binary"
+  # add more baseline covariates here
+]
+
+[labels.exposure]
+# human-readable labels for exposure variable
+your_exposure_variable = "Your Exposure (nice name)"
+your_exposure_variable_binary = "Your Exposure (binary)"
+
+[labels.outcome]
+# human-readable labels for outcomes
+outcome_1 = "Outcome One"
+outcome_2 = "Outcome Two"
+
+[titles]
+# display titles for plots
+nice_exposure_name = "Your Exposure"
+nice_outcome_name  = "Your Outcomes"
+filename_prefix    = "grf_{project_name}"
+
+[ordinal]
+# columns to treat as ordinal (with t0_ prefix)
+vars = [
+  "t0_education_level_coarsen",
+  "t0_eth_cat"
+]
+
+[eligibility]
+# sample eligibility rules (applied in script 01)
+enabled = false
+rules = []  # e.g., ["time_factor == waves.baseline", "!is.na(exposure_var)"]
+
+[censoring]
+# censoring rules for panel attrition
+enabled = false
+rules = []
+condition_var = ""
+condition_value = 1
+id_var = "id"
+wave_var = "wave"
+year_measured_var = "year_measured"
+
+[imputation]
+method = "mice"
+
+[weights]
+# weight trimming quantile
+trim_quantile = 0.99
+
+[grf]
+# causal forest hyperparameters
+seed = 42
+stabilize_splits = true
+min_node_size = 20
+num_trees = 5000
+
+[model]
+# model estimation settings
+top_n_vars = 15
+flip_outcomes = []
+train_proportion = 0.5
+use_train_test_split = true
+seed = 42
+e_val_bound_threshold = 1.10
+adjust = "none"
+
+[qini]
+show_ci = "cate"
+
+[policy_tree]
+tree_method = "fastpolicytree"
+train_proportion = 0.5
+n_iterations = 1000
+seed = 42
+metaseed = 2025
+depth = "both"
+policy_value_baseline = "control_all"
+
+[decision_tree]
+span_ratio = 0.3
+text_size = 3.8
+y_padding = 0.25
+edge_label_offset = 0.002
+border_size = 0.05
+
+[policy_tree_style]
+point_alpha = 0.5
+title_size = 12
+subtitle_size = 12
+axis_title_size = 12
+legend_title_size = 12
+jitter_width = 0.5
+split_line_color = "red"
+split_line_alpha = 0.8
+split_label_color = "red"
+
+[heterogeneity]
+selected_model_ids = []
+
+[policy_workflow]
+min_gain_for_depth_switch = -1000000000
+include_split_breakdown = "leaf"
+split_top_only = false
+se_method = "plugin"
+dominance_threshold = 0.6
+include_interpretation = true
+audience = "policy"
+"####,
+        project_name = project_name
+    )
+}
+
+fn readme(project_name: &str) -> String {
+    format!(
+        r####"# {project_name}
+
+GRF (Generalised Random Forests) causal inference workflow.
+
+## Script order
+
+| Script | Purpose |
+|--------|---------|
+| 01-data-prep.R | data prep, saves `dat_long_final`, weights |
+| 02-wide-format.R | wide data + two-stage IPCW weights, saves `df_grf` |
+| 03-causal-forest.R | causal forest estimation + ATE plot + diagnostics |
+| 04-heterogeneity.R | heterogeneity tests + qini plots |
+| 05-policy-tree.R | policy tree stability + policy workflow |
+| 06-positivity.R | positivity transition tables |
+| 07-tables.R | baseline/exposure/outcome tables |
+| 08-plots.R | timeline + individual plots |
+
+## Configuration
+
+Edit `study.toml` with your study-specific settings before running scripts.
+
+## Requirements
+
+- R >= 4.0
+- margot package: `devtools::install_github("go-bayes/margot")`
+"####,
+        project_name = project_name
+    )
+}
+
+fn gitignore() -> String {
+    r####"# data files
+*.qs
+*.rds
+*.csv
+*.xlsx
+
+# R artifacts
+.Rhistory
+.Rdata
+.Ruserdata
+.RData
+
+# output files
+*.pdf
+*.png
+*.html
+
+# renv
+renv/library/
+renv/staging/
+renv/python/
+
+# IDE
+.Rproj.user/
+*.Rproj
+
+# OS
+.DS_Store
+Thumbs.db
+"####
+    .to_string()
+}
+
+fn script_01() -> String {
+    r####"# 01-data-prep.R
+# initial data wrangling before setting variables to wide format
+# generated by margo
+
+# set seed for reproducibility
+set.seed(42)
+
+# libraries ---------------------------------------------------------------
+if (!require(margot, quietly = TRUE)) {
+  devtools::install_github("go-bayes/margot")
+}
+library(margot)
+
+if (!requireNamespace("pacman", quietly = TRUE)) install.packages("pacman")
+pacman::p_load(
+  tidyverse, qs, here, data.table, fastDummies, naniar, skimr,
+  grf, kableExtra, ggplot2, doParallel, janitor, stringr,
+  patchwork, table1, cli, RcppTOML
+)
+
+# helpers -----------------------------------------------------------------
+`%||%` <- function(x, y) if (!is.null(x)) x else y
+
+require_cfg <- function(x, msg) {
+  if (is.null(x)) stop(msg, call. = FALSE)
+  x
+}
+
+apply_rules <- function(df, rules) {
+  if (length(rules) == 0) return(df)
+  purrr::reduce(rules, .init = df,
+    .f = function(d, expr_chr) d |> dplyr::filter(!!rlang::parse_expr(expr_chr)))
+}
+
+load_labels <- function(default_path, overrides) {
+  defaults <- list()
+  if (!is.null(default_path) && nzchar(default_path) && file.exists(default_path)) {
+    defaults <- RcppTOML::parseTOML(default_path)$labels
+    cli::cli_alert_info(sprintf("loaded label defaults from %s", default_path))
+  }
+
+  overrides <- overrides %||% list()
+  merged <- defaults
+  for (nm in names(overrides)) {
+    merged[[nm]] <- modifyList(defaults[[nm]] %||% list(), overrides[[nm]])
+  }
+  merged
+}
+
+# read config -------------------------------------------------------------
+config_path <- here::here("study.toml")
+if (file.exists(config_path)) {
+  cfg <- RcppTOML::parseTOML(config_path)
+  cli::cli_alert_info(sprintf("loaded config from %s", config_path))
+} else {
+  stop("config not found: study.toml")
+}
+
+# paths -------------------------------------------------------------------
+pull_path <- fs::path_expand(require_cfg(cfg$paths$pull_data, "set paths.pull_data in study.toml"))
+push_mods <- require_cfg(cfg$paths$push_mods, "set paths.push_mods in study.toml")
+
+# create output directory if needed
+if (!dir.exists(push_mods)) {
+  dir.create(push_mods, recursive = TRUE)
+  cli::cli_alert_info(sprintf("created output directory: %s", push_mods))
+}
+
+# study definitions -------------------------------------------------------
+baseline_wave <- require_cfg(cfg$waves$baseline, "set waves.baseline in study.toml")
+exposure_waves <- require_cfg(cfg$waves$exposure, "set waves.exposure in study.toml")
+outcome_wave <- require_cfg(cfg$waves$outcome, "set waves.outcome in study.toml")
+all_waves <- c(baseline_wave, exposure_waves, outcome_wave)
+
+name_exposure <- require_cfg(cfg$exposure$name, "set exposure.name in study.toml")
+
+# cutpoints
+cut_points <- require_cfg(cfg$exposure$binary_cutpoints, "set exposure.binary_cutpoints in study.toml")
+lower_cut <- cut_points[[1]]
+upper_cut <- cut_points[[2]]
+threshold <- cfg$exposure$threshold_label %||% ">"
+inverse_threshold <- ifelse(threshold == ">", "<=", ">=")
+scale_range <- cfg$exposure$scale_range %||% "scale range 0-10"
+
+baseline_vars <- require_cfg(cfg$baseline$vars, "set baseline.vars in study.toml")
+outcome_vars <- require_cfg(cfg$outcomes$vars, "set outcomes.vars in study.toml")
+ordinal_columns <- cfg$ordinal$vars %||% character(0)
+
+# labels
+label_defaults_path <- cfg$labels$defaults_path %||% NULL
+labels_all <- load_labels(label_defaults_path, cfg$labels)
+
+cli::cli_h1("configuration loaded")
+cli::cli_alert_info(sprintf("baseline: %s | exposure: %s | outcome: %s",
+  baseline_wave, paste(exposure_waves, collapse = ", "), outcome_wave))
+
+# load data ---------------------------------------------------------------
+# TODO: adjust this to match your data loading pattern
+dat <- margot::here_read_qs("nzavs_data", pull_path)
+cli::cli_alert_info(sprintf("loaded %d rows", nrow(dat)))
+
+# initial prep ------------------------------------------------------------
+dat_prep <- dat |>
+  arrange(id, time_factor) |>
+  margot::remove_numeric_attributes() |>
+  droplevels()
+
+# apply eligibility rules
+if (cfg$eligibility$enabled %||% FALSE) {
+  rules <- cfg$eligibility$rules %||% character(0)
+  dat_prep <- apply_rules(dat_prep, rules)
+  cli::cli_alert_info(sprintf("eligibility applied: %s", paste(rules, collapse = " | ")))
+}
+
+n_total <- length(unique(dat_prep$id))
+n_total_pretty <- margot::pretty_number(n_total)
+margot::here_save(n_total_pretty, "n_total")
+
+cli::cli_h1("set waves for three-wave study")
+
+# exposure names
+name_exposure_binary <- paste0(name_exposure, "_binary")
+exposure_var <- c(name_exposure, name_exposure_binary)
+
+# labels
+var_labels_exposure <- labels_all$exposure %||% list()
+var_labels_outcomes <- labels_all$outcome %||% list()
+
+# save variable definitions
+baseline_vars <- sort(baseline_vars)
+outcome_vars <- sort(outcome_vars)
+
+margot::here_save(name_exposure, "name_exposure")
+margot::here_save(var_labels_exposure, "var_labels_exposure")
+margot::here_save(baseline_vars, "baseline_vars")
+margot::here_save(exposure_var, "exposure_var")
+margot::here_save(name_exposure_binary, "exposure_var_binary")
+margot::here_save(outcome_vars, "outcome_vars")
+margot::here_save(baseline_wave, "baseline_wave")
+margot::here_save(exposure_waves, "exposure_waves")
+margot::here_save(outcome_wave, "outcome_wave")
+margot::here_save(ordinal_columns, "ordinal_columns")
+
+cli::cli_h1("saved variable definitions")
+
+# select eligible participants --------------------------------------------
+ids_baseline <- dat_prep |>
+  filter(time_factor == baseline_wave, !is.na(!!sym(name_exposure))) |>
+  pull(id)
+
+dat_long_1 <- dat_prep |>
+  filter(id %in% ids_baseline & time_factor %in% all_waves) |>
+  droplevels()
+
+# apply censoring
+if (cfg$censoring$enabled %||% FALSE) {
+  rules <- cfg$censoring$rules %||% character(0)
+  if (length(rules) > 0) {
+    dat_long_1 <- apply_rules(dat_long_1, rules)
+    cli::cli_alert_info(sprintf("censoring filters applied: %s", paste(rules, collapse = " | ")))
+  }
+}
+
+# exposure distribution ---------------------------------------------------
+dat_long_exposure <- dat_long_1 |> filter(time_factor %in% exposure_waves)
+
+cli::cli_alert_info(sprintf("cutpoints: %s", paste(cut_points, collapse = ", ")))
+cli::cli_alert_info(sprintf("threshold %s | scale range: %s", threshold, scale_range))
+
+margot::here_save(lower_cut, "lower_cut")
+margot::here_save(upper_cut, "upper_cut")
+margot::here_save(threshold, "threshold")
+margot::here_save(inverse_threshold, "inverse_threshold")
+margot::here_save(scale_range, "scale_range")
+margot::here_save(cut_points, "cut_points")
+
+# visualise cutpoint
+graph_cut <- margot::margot_plot_categorical(
+  dat_long_exposure,
+  col_name = name_exposure,
+  custom_breaks = cut_points,
+  cutpoint_inclusive = "upper",
+  show_mean = TRUE,
+  show_median = TRUE,
+  show_sd = TRUE
+)
+print(graph_cut)
+margot::here_save(graph_cut, "graph_cut", push_mods)
+
+cli::cli_h1("created binary exposure variable")
+
+# create binary exposure
+dat_long_2 <- margot::create_ordered_variable(
+  dat_long_1,
+  var_name = name_exposure,
+  custom_breaks = cut_points,
+  cutpoint_inclusive = "upper"
+)
+
+# process binary variables
+dat_long_3 <- margot::margot_process_binary_vars(dat_long_2)
+
+# log-transform if needed
+dat_long_final <- margot::margot_log_transform_vars(
+  dat_long_3,
+  vars = c(starts_with("hours_"), "household_inc"),
+  prefix = "log_",
+  keep_original = FALSE,
+  exceptions = exposure_var
+) |>
+  select(all_of(c(baseline_vars, exposure_var, outcome_vars,
+    "id", "time_factor", "year_measured", "sample_weights"))) |>
+  droplevels()
+
+# missing data summary
+missing_summary <- naniar::miss_var_summary(dat_long_final)
+print(missing_summary)
+margot::here_save(missing_summary, "missing_summary", push_mods)
+
+dat_baseline <- dat_long_final |> filter(time_factor == baseline_wave)
+percent_missing_baseline <- naniar::pct_miss(dat_baseline)
+margot::here_save(percent_missing_baseline, "percent_missing_baseline", push_mods)
+
+# save prepared data
+margot::here_save(dat_long_final, "dat_long_final", push_mods)
+margot::here_save(dat_long_1, "dat_long_1", push_mods)
+
+cli::cli_h1("saved final long data for script 02")
+
+# sample weights
+t0_sample_weights <- margot_trim_sample_weights(
+  dat_baseline$sample_weights,
+  upper_quantile = cfg$weights$trim_quantile %||% 0.99
+)
+margot::here_save(t0_sample_weights, "t0_sample_weights")
+
+cli::cli_h1("script 01 complete")
+"####
+    .to_string()
+}
+
+fn script_02() -> String {
+    r####"# 02-wide-format.R
+# transform data to wide format with two-stage IPCW weights
+# generated by margo
+
+set.seed(42)
+
+# libraries ---------------------------------------------------------------
+if (!require(margot, quietly = TRUE)) {
+  devtools::install_github("go-bayes/margot")
+}
+library(margot)
+
+if (!requireNamespace("pacman", quietly = TRUE)) install.packages("pacman")
+pacman::p_load(
+  tidyverse, qs, here, data.table, fastDummies, naniar, skimr,
+  grf, kableExtra, ggplot2, doParallel, janitor, stringr,
+  patchwork, table1, cli, glue, RcppTOML
+)
+
+# helpers -----------------------------------------------------------------
+`%||%` <- function(x, y) if (!is.null(x)) x else y
+
+require_cfg <- function(x, msg) {
+  if (is.null(x)) stop(msg, call. = FALSE)
+  x
+}
+
+# read config -------------------------------------------------------------
+config_path <- here::here("study.toml")
+cfg <- RcppTOML::parseTOML(config_path)
+push_mods <- require_cfg(cfg$paths$push_mods, "set paths.push_mods in study.toml")
+
+# read saved objects ------------------------------------------------------
+dat_long_final <- margot::here_read("dat_long_final", push_mods)
+t0_sample_weights <- margot::here_read("t0_sample_weights")
+name_exposure <- margot::here_read("name_exposure")
+baseline_vars <- margot::here_read("baseline_vars")
+exposure_var <- margot::here_read("exposure_var")
+outcome_vars <- margot::here_read("outcome_vars")
+ordinal_columns <- margot::here_read("ordinal_columns")
+
+name_exposure_binary <- paste0(name_exposure, "_binary")
+t0_name_exposure_binary <- paste0("t0_", name_exposure_binary)
+t1_name_exposure_binary <- paste0("t1_", name_exposure_binary)
+
+cli::cli_h1("loaded data and variable definitions")
+
+# impute and transform to wide --------------------------------------------
+continuous_columns_keep <- c("t0_sample_weights")
+
+df_wide <- margot_wide_machine(
+  dat_long_final,
+  id = "id",
+  wave = "time_factor",
+  baseline_vars,
+  exposure_var = exposure_var,
+  outcome_vars,
+  confounder_vars = NULL,
+  imputation_method = cfg$imputation$method %||% "mice",
+  include_exposure_var_baseline = TRUE,
+  include_outcome_vars_baseline = TRUE,
+  extend_baseline = FALSE,
+  include_na_indicators = FALSE
+)
+
+df_wide$t0_sample_weights <- t0_sample_weights
+margot::here_save(df_wide, "df_wide")
+
+cli::cli_h1("created wide data")
+
+# process longitudinal data -----------------------------------------------
+df_wide_encoded <- margot::margot_process_longitudinal_data_wider(
+  df_wide,
+  ordinal_columns = ordinal_columns,
+  continuous_columns_keep = continuous_columns_keep,
+  not_lost_in_following_wave = "not_lost_following_wave",
+  lost_in_following_wave = "lost_following_wave",
+  remove_selected_columns = TRUE,
+  exposure_var = exposure_var,
+  scale_continuous = TRUE
+)
+
+# make binary numeric
+df_wide_encoded[[t0_name_exposure_binary]] <-
+  as.numeric(df_wide_encoded[[t0_name_exposure_binary]]) - 1
+df_wide_encoded[[t1_name_exposure_binary]] <-
+  as.numeric(df_wide_encoded[[t1_name_exposure_binary]]) - 1
+
+# validation
+stopifnot(
+  all(df_wide_encoded[[t0_name_exposure_binary]][!is.na(df_wide_encoded[[t0_name_exposure_binary]])] %in% 0:1),
+  all(df_wide_encoded[[t1_name_exposure_binary]][!is.na(df_wide_encoded[[t1_name_exposure_binary]])] %in% 0:1)
+)
+
+margot::here_save(df_wide_encoded, "df_wide_encoded")
+
+cli::cli_h1("encoded wide data")
+
+# two-stage IPCW weights --------------------------------------------------
+df <- margot::here_read("df_wide_encoded")
+
+# stage 0: baseline -> t1
+baseline_covars <- df %>%
+  select(starts_with("t0_"), -ends_with("_lost"),
+         -ends_with("lost_following_wave"), -ends_with("_weights")) %>%
+  colnames() %>%
+  sort()
+
+num_dat <- df %>%
+  select(all_of(baseline_covars)) %>%
+  mutate(across(everything(), as.numeric))
+
+X0 <- as.matrix(num_dat)
+D0 <- factor(df$t0_lost_following_wave, levels = c(0, 1))
+
+cli::cli_h1("stage 0: probability forest for baseline dropout")
+pf0 <- grf::probability_forest(X0, D0)
+P0 <- predict(pf0, X0)$pred[, 2]
+w0 <- ifelse(D0 == 1, 0, 1 / (1 - P0))
+df$w0 <- w0
+
+# stage 1: t1 -> t2
+df1 <- df %>% filter(t0_lost_following_wave == 0)
+
+cen1_data <- df %>%
+  filter(t0_lost_following_wave == 0, !is.na(.data[[t1_name_exposure_binary]]))
+
+X1_num <- cen1_data %>%
+  mutate(across(all_of(c(baseline_covars, t1_name_exposure_binary)), as.numeric)) %>%
+  select(all_of(baseline_covars), all_of(t1_name_exposure_binary))
+
+X1 <- as.matrix(X1_num)
+D1 <- factor(cen1_data$t1_lost_following_wave, levels = c(0, 1))
+
+cli::cli_h1("stage 1: probability forest for second-wave dropout")
+pf1 <- grf::probability_forest(X1, D1)
+P1 <- predict(pf1, X1)$pred[, 2]
+w1 <- ifelse(D1 == 1, 0, 1 / (1 - P1))
+
+df1$w1 <- 0
+df1$w1[match(cen1_data$id, df1$id)] <- w1
+
+# combine weights
+w0_vec <- df$w0[match(df1$id, df$id)]
+raw_w <- df1$t0_sample_weights * w0_vec * df1$w1
+df1$raw_weight <- raw_w
+
+pos <- raw_w[!is.na(raw_w) & raw_w > 0]
+lb <- quantile(pos, 0.00, na.rm = TRUE)
+ub <- quantile(pos, cfg$weights$trim_quantile %||% 0.99, na.rm = TRUE)
+
+trimmed <- pmin(pmax(raw_w, lb), ub)
+normalised <- trimmed / mean(trimmed, na.rm = TRUE)
+df1$combo_weights <- normalised
+
+# analysis set
+df_analysis <- df1 %>%
+  filter(t1_lost_following_wave == 0) %>%
+  droplevels()
+
+margot::here_save(df_analysis, "df_analysis_weighted_two_stage")
+
+cli::cli_alert_success(glue("analysis sample: {nrow(df_analysis)} obs"))
+
+# save for grf ------------------------------------------------------------
+E <- setdiff(baseline_covars, t0_name_exposure_binary)
+margot::here_save(E, "E")
+
+df_grf <- df_analysis |>
+  relocate(ends_with("_weights"), .before = starts_with("t0_")) |>
+  relocate(ends_with("_weight"), .before = ends_with("_weights")) |>
+  relocate(starts_with("t0_"), .before = starts_with("t1_")) |>
+  relocate(starts_with("t1_"), .before = starts_with("t2_")) |>
+  relocate("t0_not_lost_following_wave", .before = starts_with("t1_")) |>
+  relocate(all_of(t1_name_exposure_binary), .before = starts_with("t2_")) |>
+  droplevels()
+
+margot::here_save(df_grf, "df_grf")
+
+n_observed_grf <- nrow(df_grf)
+margot::here_save(n_observed_grf, "n_observed_grf")
+
+cli::cli_h1("script 02 complete - saved df_grf for models")
+"####
+    .to_string()
+}
+
+fn script_03() -> String {
+    r####"# 03-causal-forest.R
+# estimate causal forest model
+# generated by margo
+
+set.seed(42)
+
+# libraries ---------------------------------------------------------------
+if (!require(margot, quietly = TRUE)) {
+  devtools::install_github("go-bayes/margot")
+}
+library(margot)
+
+if (!requireNamespace("pacman", quietly = TRUE)) install.packages("pacman")
+pacman::p_load(
+  tidyverse, qs, here, data.table, grf, ranger, doParallel,
+  kableExtra, ggplot2, rlang, purrr, patchwork, janitor, glue, cli,
+  future, furrr, RcppTOML
+)
+
+# helpers -----------------------------------------------------------------
+`%||%` <- function(x, y) if (!is.null(x)) x else y
+
+require_cfg <- function(x, msg) {
+  if (is.null(x)) stop(msg, call. = FALSE)
+  x
+}
+
+load_labels <- function(default_path, overrides) {
+  defaults <- list()
+  if (!is.null(default_path) && nzchar(default_path) && file.exists(default_path)) {
+    defaults <- RcppTOML::parseTOML(default_path)$labels
+  }
+  overrides <- overrides %||% list()
+  merged <- defaults
+  for (nm in names(overrides)) merged[[nm]] <- modifyList(defaults[[nm]] %||% list(), overrides[[nm]])
+  merged
+}
+
+# config ------------------------------------------------------------------
+config_path <- here::here("study.toml")
+cfg <- RcppTOML::parseTOML(config_path)
+push_mods <- require_cfg(cfg$paths$push_mods, "set paths.push_mods in study.toml")
+
+label_defaults_path <- cfg$labels$defaults_path %||% NULL
+labels_all <- load_labels(label_defaults_path, cfg$labels)
+
+grf_defaults <- list(
+  seed = cfg$grf$seed %||% 42,
+  stabilize.splits = cfg$grf$stabilize_splits %||% TRUE,
+  min.node.size = cfg$grf$min_node_size %||% 20,
+  num.trees = cfg$grf$num_trees %||% 5000
+)
+
+model_top_n_vars <- cfg$model$top_n_vars %||% 15
+model_flip_outcomes <- cfg$model$flip_outcomes %||% NULL
+model_train_prop <- cfg$model$train_proportion %||% 0.5
+model_use_split <- cfg$model$use_train_test_split %||% TRUE
+model_seed <- cfg$model$seed %||% 42
+
+# load data ---------------------------------------------------------------
+original_df <- margot::here_read("df_wide", push_mods)
+df_grf <- margot::here_read("df_grf", push_mods)
+name_exposure <- margot::here_read("name_exposure")
+outcome_vars <- margot::here_read("outcome_vars")
+E <- margot::here_read("E", push_mods)
+
+t1_name_exposure_binary <- paste0("t1_", name_exposure, "_binary")
+t0_name_exposure_binary <- paste0("t0_", name_exposure, "_binary")
+
+cli::cli_h1("loaded data")
+
+# outcome variables
+t2_outcome_z <- paste0("t2_", outcome_vars, "_z") |> sort()
+
+# labels
+nice_exposure_name <- cfg$titles$nice_exposure_name %||% "Exposure"
+nice_outcome_name <- cfg$titles$nice_outcome_name %||% "Outcome"
+title <- glue::glue("Effect of {nice_exposure_name} on {nice_outcome_name}")
+title_binary <- title
+margot::here_save(title_binary, "title_binary")
+margot::here_save(title, "title")
+filename_prefix <- cfg$titles$filename_prefix %||% "grf_results"
+
+label_mapping_all <- labels_all$outcome %||% list()
+margot::here_save(label_mapping_all, "label_mapping_all")
+
+# graph settings ----------------------------------------------------------
+x_offset <- -0.5
+x_lim_lo <- -0.5
+x_lim_hi <- 0.5
+
+base_defaults_binary <- list(
+  type = "RD",
+  title = title_binary,
+  e_val_bound_threshold = 1.2,
+  colors = c("positive" = "#E69F00", "not reliable" = "grey50", "negative" = "#56B4E9"),
+  x_offset = x_offset,
+  x_lim_lo = x_lim_lo,
+  x_lim_hi = x_lim_hi,
+  text_size = 8,
+  linewidth = 0.75,
+  estimate_scale = 1,
+  base_size = 18,
+  point_size = 4,
+  title_size = 19,
+  subtitle_size = 16,
+  legend_text_size = 10,
+  legend_title_size = 10,
+  include_coefficients = FALSE
+)
+
+outcomes_options_all <- margot_plot_create_options(
+  title = "",
+  base_defaults = base_defaults_binary,
+  subtitle = "",
+  filename_prefix = filename_prefix
+)
+
+# causal forest -----------------------------------------------------------
+W <- as.vector(df_grf[[t1_name_exposure_binary]])
+weights <- df_grf$combo_weights
+X <- margot::remove_numeric_attributes(df_grf[E])
+
+cli::cli_h1("fitting causal forest")
+
+models_binary <- margot_causal_forest(
+  data = df_grf,
+  outcome_vars = t2_outcome_z,
+  covariates = X,
+  W = W,
+  weights = weights,
+  grf_defaults = grf_defaults,
+  top_n_vars = model_top_n_vars,
+  save_models = TRUE,
+  save_data = TRUE,
+  flip_outcomes = model_flip_outcomes,
+  compute_conditional_means = TRUE,
+  train_proportion = model_train_prop,
+  use_train_test_split = model_use_split,
+  seed = model_seed
+)
+
+margot::here_save_qs(models_binary, "models_binary", push_mods)
+
+cli::cli_h1("causal forest complete")
+
+# diagnostics -------------------------------------------------------------
+overlap <- margot_assess_overlap(models_binary, exposure_name = name_exposure)
+print(overlap$propensity_plots$exposure)
+margot::margot_save_png(overlap$propensity_plots$exposure, base_filename = "overlap")
+
+# omnibus test
+omnibus_results <- margot_omnibus_hetero_test(models_binary, label_mapping = label_mapping_all)
+print(omnibus_results$summary_table)
+
+# ATE plot ----------------------------------------------------------------
+ate_result <- margot_plot(
+  models_binary$combined_table,
+  options = outcomes_options_all,
+  label_mapping = label_mapping_all,
+  include_coefficients = FALSE,
+  save_output = FALSE,
+  order = "magnitude_asc",
+  original_df = original_df,
+  e_val_bound_threshold = cfg$model$e_val_bound_threshold %||% 1.10,
+  rename_ate = TRUE,
+  adjust = cfg$model$adjust %||% "none",
+  alpha = 0.1
+)
+
+print(ate_result$plot)
+cat(ate_result$interpretation)
+
+# diagnostics
+diag_tbl_98 <- margot_inspect_qini(models_binary, propensity_bounds = c(0.01, 0.99))
+
+# save outputs
+margot::here_save(diag_tbl_98, "diag_tbl_98", push_mods)
+margot::here_save(ate_result, "ate_result", push_mods)
+margot::here_save(overlap, "overlap", push_mods)
+
+cli::cli_h1("script 03 complete - models and diagnostics saved")
+"####
+    .to_string()
+}
+
+fn script_04() -> String {
+    r####"# 04-heterogeneity.R
+# heterogeneity tests and qini plots
+# generated by margo
+
+set.seed(42)
+
+# libraries ---------------------------------------------------------------
+if (!require(margot, quietly = TRUE)) {
+  devtools::install_github("go-bayes/margot")
+}
+library(margot)
+
+if (!requireNamespace("pacman", quietly = TRUE)) install.packages("pacman")
+pacman::p_load(
+  tidyverse, qs, here, grf, kableExtra, ggplot2, patchwork,
+  cli, glue, RcppTOML
+)
+
+# helpers -----------------------------------------------------------------
+`%||%` <- function(x, y) if (!is.null(x)) x else y
+
+require_cfg <- function(x, msg) {
+  if (is.null(x)) stop(msg, call. = FALSE)
+  x
+}
+
+# config ------------------------------------------------------------------
+config_path <- here::here("study.toml")
+cfg <- RcppTOML::parseTOML(config_path)
+push_mods <- require_cfg(cfg$paths$push_mods, "set paths.push_mods in study.toml")
+
+# load model --------------------------------------------------------------
+models_binary <- margot::here_read_qs("models_binary", push_mods)
+label_mapping_all <- margot::here_read("label_mapping_all")
+
+cli::cli_h1("loaded models")
+
+# heterogeneity interpretation --------------------------------------------
+heterogeneity_results <- margot_interpret_heterogeneity(
+  models_binary,
+  label_mapping = label_mapping_all,
+  save_path = push_mods
+)
+
+print(heterogeneity_results$summary_table)
+
+# save
+margot::here_save(heterogeneity_results, "heterogeneity_results", push_mods)
+
+# qini plots --------------------------------------------------------------
+qini_results <- margot_plot_qini(
+  models_binary,
+  label_mapping = label_mapping_all,
+  show_ci = cfg$qini$show_ci %||% "cate"
+)
+
+print(qini_results$combined_plot)
+
+margot::here_save(qini_results, "qini_results", push_mods)
+margot::margot_save_png(qini_results$combined_plot, base_filename = "qini_combined")
+
+cli::cli_h1("script 04 complete - heterogeneity analysis saved")
+"####
+    .to_string()
+}
+
+fn script_05() -> String {
+    r####"# 05-policy-tree.R
+# policy tree stability and policy workflow
+# generated by margo
+
+set.seed(42)
+
+# libraries ---------------------------------------------------------------
+if (!require(margot, quietly = TRUE)) {
+  devtools::install_github("go-bayes/margot")
+}
+library(margot)
+
+if (!requireNamespace("pacman", quietly = TRUE)) install.packages("pacman")
+pacman::p_load(
+  tidyverse, qs, here, grf, policytree, kableExtra, ggplot2,
+  patchwork, cli, glue, RcppTOML
+)
+
+# helpers -----------------------------------------------------------------
+`%||%` <- function(x, y) if (!is.null(x)) x else y
+
+require_cfg <- function(x, msg) {
+  if (is.null(x)) stop(msg, call. = FALSE)
+  x
+}
+
+# config ------------------------------------------------------------------
+config_path <- here::here("study.toml")
+cfg <- RcppTOML::parseTOML(config_path)
+push_mods <- require_cfg(cfg$paths$push_mods, "set paths.push_mods in study.toml")
+
+# policy tree settings
+pt_cfg <- cfg$policy_tree %||% list()
+tree_method <- pt_cfg$tree_method %||% "fastpolicytree"
+train_proportion <- pt_cfg$train_proportion %||% 0.5
+n_iterations <- pt_cfg$n_iterations %||% 1000
+pt_seed <- pt_cfg$seed %||% 42
+metaseed <- pt_cfg$metaseed %||% 2025
+depth <- pt_cfg$depth %||% "both"
+
+# load model --------------------------------------------------------------
+models_binary <- margot::here_read_qs("models_binary", push_mods)
+label_mapping_all <- margot::here_read("label_mapping_all")
+
+cli::cli_h1("loaded models")
+
+# policy tree stability ---------------------------------------------------
+cli::cli_h1("running policy tree stability analysis")
+
+stability_results <- margot_policy_tree_stability(
+  models_binary,
+  n_iterations = n_iterations,
+  train_proportion = train_proportion,
+  seed = pt_seed,
+  metaseed = metaseed,
+  depth = depth,
+  tree_method = tree_method
+)
+
+print(stability_results$summary)
+margot::here_save(stability_results, "stability_results", push_mods)
+
+# policy workflow ---------------------------------------------------------
+cli::cli_h1("running policy workflow")
+
+pw_cfg <- cfg$policy_workflow %||% list()
+
+policy_results <- margot_policy_workflow(
+  models_binary,
+  label_mapping = label_mapping_all,
+  save_path = push_mods,
+  min_gain_for_depth_switch = pw_cfg$min_gain_for_depth_switch %||% -1e9,
+  include_split_breakdown = pw_cfg$include_split_breakdown %||% "leaf",
+  split_top_only = pw_cfg$split_top_only %||% FALSE,
+  se_method = pw_cfg$se_method %||% "plugin",
+  dominance_threshold = pw_cfg$dominance_threshold %||% 0.6,
+  include_interpretation = pw_cfg$include_interpretation %||% TRUE,
+  audience = pw_cfg$audience %||% "policy"
+)
+
+margot::here_save(policy_results, "policy_results", push_mods)
+
+cli::cli_h1("script 05 complete - policy tree analysis saved")
+"####
+    .to_string()
+}
+
+fn script_06() -> String {
+    r####"# 06-positivity.R
+# positivity transition tables
+# generated by margo
+
+set.seed(42)
+
+# libraries ---------------------------------------------------------------
+if (!require(margot, quietly = TRUE)) {
+  devtools::install_github("go-bayes/margot")
+}
+library(margot)
+
+if (!requireNamespace("pacman", quietly = TRUE)) install.packages("pacman")
+pacman::p_load(
+  tidyverse, qs, here, kableExtra, cli, RcppTOML
+)
+
+# helpers -----------------------------------------------------------------
+`%||%` <- function(x, y) if (!is.null(x)) x else y
+
+require_cfg <- function(x, msg) {
+  if (is.null(x)) stop(msg, call. = FALSE)
+  x
+}
+
+# config ------------------------------------------------------------------
+config_path <- here::here("study.toml")
+cfg <- RcppTOML::parseTOML(config_path)
+push_mods <- require_cfg(cfg$paths$push_mods, "set paths.push_mods in study.toml")
+
+# load data ---------------------------------------------------------------
+df_grf <- margot::here_read("df_grf", push_mods)
+name_exposure <- margot::here_read("name_exposure")
+
+t0_name_exposure_binary <- paste0("t0_", name_exposure, "_binary")
+t1_name_exposure_binary <- paste0("t1_", name_exposure, "_binary")
+
+cli::cli_h1("positivity check")
+
+# transition table --------------------------------------------------------
+transition_table <- table(
+  baseline = df_grf[[t0_name_exposure_binary]],
+  exposure = df_grf[[t1_name_exposure_binary]]
+)
+
+print(transition_table)
+
+# proportions
+transition_prop <- prop.table(transition_table, margin = 1)
+print(round(transition_prop, 3))
+
+# save
+margot::here_save(transition_table, "transition_table", push_mods)
+margot::here_save(transition_prop, "transition_prop", push_mods)
+
+cli::cli_h1("script 06 complete - positivity tables saved")
+"####
+    .to_string()
+}
+
+fn script_07() -> String {
+    r####"# 07-tables.R
+# baseline, exposure, and outcome tables
+# generated by margo
+
+set.seed(42)
+
+# libraries ---------------------------------------------------------------
+if (!require(margot, quietly = TRUE)) {
+  devtools::install_github("go-bayes/margot")
+}
+library(margot)
+
+if (!requireNamespace("pacman", quietly = TRUE)) install.packages("pacman")
+pacman::p_load(
+  tidyverse, qs, here, kableExtra, table1, cli, RcppTOML
+)
+
+# helpers -----------------------------------------------------------------
+`%||%` <- function(x, y) if (!is.null(x)) x else y
+
+require_cfg <- function(x, msg) {
+  if (is.null(x)) stop(msg, call. = FALSE)
+  x
+}
+
+# config ------------------------------------------------------------------
+config_path <- here::here("study.toml")
+cfg <- RcppTOML::parseTOML(config_path)
+push_mods <- require_cfg(cfg$paths$push_mods, "set paths.push_mods in study.toml")
+
+# load data ---------------------------------------------------------------
+df_wide <- margot::here_read("df_wide", push_mods)
+baseline_vars <- margot::here_read("baseline_vars")
+outcome_vars <- margot::here_read("outcome_vars")
+
+cli::cli_h1("generating tables")
+
+# baseline table ----------------------------------------------------------
+baseline_cols <- paste0("t0_", baseline_vars)
+baseline_cols_exist <- baseline_cols[baseline_cols %in% colnames(df_wide)]
+
+if (length(baseline_cols_exist) > 0) {
+  baseline_summary <- df_wide |>
+    select(all_of(baseline_cols_exist)) |>
+    summary()
+
+  print(baseline_summary)
+  margot::here_save(baseline_summary, "baseline_summary", push_mods)
+}
+
+# outcome summary ---------------------------------------------------------
+outcome_cols <- paste0("t2_", outcome_vars)
+outcome_cols_exist <- outcome_cols[outcome_cols %in% colnames(df_wide)]
+
+if (length(outcome_cols_exist) > 0) {
+  outcome_summary <- df_wide |>
+    select(all_of(outcome_cols_exist)) |>
+    summary()
+
+  print(outcome_summary)
+  margot::here_save(outcome_summary, "outcome_summary", push_mods)
+}
+
+cli::cli_h1("script 07 complete - tables saved")
+"####
+    .to_string()
+}
+
+fn script_08() -> String {
+    r####"# 08-plots.R
+# timeline and individual plots
+# generated by margo
+
+set.seed(42)
+
+# libraries ---------------------------------------------------------------
+if (!require(margot, quietly = TRUE)) {
+  devtools::install_github("go-bayes/margot")
+}
+library(margot)
+
+if (!requireNamespace("pacman", quietly = TRUE)) install.packages("pacman")
+pacman::p_load(
+  tidyverse, qs, here, ggplot2, patchwork, cli, RcppTOML
+)
+
+# helpers -----------------------------------------------------------------
+`%||%` <- function(x, y) if (!is.null(x)) x else y
+
+require_cfg <- function(x, msg) {
+  if (is.null(x)) stop(msg, call. = FALSE)
+  x
+}
+
+# config ------------------------------------------------------------------
+config_path <- here::here("study.toml")
+cfg <- RcppTOML::parseTOML(config_path)
+push_mods <- require_cfg(cfg$paths$push_mods, "set paths.push_mods in study.toml")
+
+# load data ---------------------------------------------------------------
+dat_long_1 <- margot::here_read("dat_long_1", push_mods)
+name_exposure <- margot::here_read("name_exposure")
+label_mapping_all <- margot::here_read("label_mapping_all")
+
+cli::cli_h1("generating plots")
+
+# exposure distribution over time -----------------------------------------
+exposure_plot <- ggplot(dat_long_1, aes(x = .data[[name_exposure]])) +
+  geom_histogram(bins = 30, fill = "steelblue", alpha = 0.7) +
+  facet_wrap(~time_factor) +
+  labs(
+    title = paste("Distribution of", name_exposure, "over time"),
+    x = name_exposure,
+    y = "Count"
+  ) +
+  theme_minimal()
+
+print(exposure_plot)
+
+margot::margot_save_png(exposure_plot, base_filename = "exposure_distribution")
+
+# sample size over time ---------------------------------------------------
+sample_size_plot <- dat_long_1 |>
+  group_by(time_factor) |>
+  summarise(n = n(), .groups = "drop") |>
+  ggplot(aes(x = time_factor, y = n)) +
+  geom_col(fill = "steelblue", alpha = 0.7) +
+  geom_text(aes(label = n), vjust = -0.5) +
+  labs(
+    title = "Sample size by wave",
+    x = "Wave",
+    y = "N"
+  ) +
+  theme_minimal()
+
+print(sample_size_plot)
+
+margot::margot_save_png(sample_size_plot, base_filename = "sample_size")
+
+cli::cli_h1("script 08 complete - plots saved")
+"####
+    .to_string()
+}

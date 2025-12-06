@@ -1,0 +1,29 @@
+[package]
+name = "margo"
+version = "0.1.0"
+edition = "2021"
+authors = ["Joseph Bulbulia"]
+description = "CLI tool for scaffolding margot causal inference projects"
+license = "MIT"
+repository = "https://github.com/go-bayes/margo"
+keywords = ["causal-inference", "r", "scaffold", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "margo"
+path = "src/main.rs"
+
+[dependencies]
+# cli argument parsing
+clap = { version = "4", features = ["derive"] }
+
+# error handling
+anyhow = "1"
+
+# coloured terminal output
+colored = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
