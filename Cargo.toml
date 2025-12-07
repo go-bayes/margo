@@ -1,6 +1,6 @@
 [package]
 name = "margo"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 authors = ["Joseph Bulbulia"]
 description = "CLI tool for scaffolding margot causal inference projects"
@@ -22,6 +22,13 @@ anyhow = "1"
 
 # coloured terminal output
 colored = "3"
+
+# TUI
+ratatui = "0.29"
+crossterm = "0.28"
+
+# config paths
+dirs = "6"
 
 [dev-dependencies]
 tempfile = "3"
