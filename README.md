@@ -96,6 +96,88 @@ Then run scripts in order: `01-data-prep.R`, `02-wide-format.R`, etc.
 | `grf` | Generalised Random Forests (heterogeneous treatment effects) | ✓ Available |
 | `lmtp` | Longitudinal Modified Treatment Policies | Planned |
 
+## CLI Examples
+
+### Basic usage
+
+```bash
+# create a GRF project with exposure and outcomes specified directly
+margo init grf church_attendance wellbeing life_satisfaction
+
+# multiple outcomes
+margo init grf hours_exercise kessler_6 self_esteem meaning_purpose
+```
+
+### Using templates
+
+Templates let you reuse predefined sets of outcomes and baselines:
+
+```bash
+# load outcomes from a template
+margo init grf church_attendance -t wellbeing
+
+# combine multiple outcome templates
+margo init grf exercise -t wellbeing,health
+
+# use a custom baseline template
+margo init grf meditation life_satisfaction -b extended
+```
+
+Templates are stored in `~/.config/margo/outcomes/` and `~/.config/margo/baselines/`.
+
+### Custom project names
+
+```bash
+# auto-generated name: church_attendance-wellbeing-life_satisfaction
+margo init grf church_attendance wellbeing life_satisfaction
+
+# custom name
+margo init grf church_attendance wellbeing -n "nzavs-religion-study"
+```
+
+### WHO mode (BMI/exercise variables)
+
+```bash
+# default: continuous (hlth_bmi, log_hours_exercise)
+margo init grf sleep quality -w default
+
+# categorical (bmi_cat, who_hours_exercise_cat)
+margo init grf diet weight -w cat
+
+# ordinal numeric (bmi_cat_num, who_hours_exercise_num)
+margo init grf stress anxiety -w num
+```
+
+### Configuration management
+
+```bash
+# create user config file
+margo config init
+
+# show config path
+margo config path
+# ~/.config/margo/config.toml
+
+# edit config in your $EDITOR
+margo config edit
+```
+
+### Interactive mode
+
+```bash
+# launch the terminal UI for guided project setup
+margo new
+```
+
+### Getting help
+
+```bash
+margo --help
+margo init --help
+margo init grf --help
+margo config --help
+```
+
 ## Licence
 
 MIT
