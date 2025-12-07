@@ -5,6 +5,7 @@ use std::path::Path;
 
 use crate::config::Config;
 use crate::templates::grf;
+use crate::templates::grf_event;
 
 /// initialise a GRF project from config and templates
 pub fn grf_from_config(
@@ -229,4 +230,110 @@ fn extract_old_project_name(content: &str) -> String {
         }
     }
     String::new()
+}
+
+/// initialise a GRF Event Study project (multi-outcome waves)
+pub fn grf_event_from_config(
+    exposure: &str,
+    outcome: Option<&str>,
+    waves: Option<&[String]>,
+    reference: Option<&str>,
+    baselines_name: &str,
+    custom_name: Option<&str>,
+) -> Result<()> {
+    // load user config
+    let config = Config::load();
+
+    // check required paths are configured
+    let pull_data = config.pull_data.ok_or_else(|| {
+        anyhow::anyhow!(
+            "pull_data not configured. run: {} and set paths",
+            "margo config".cyan()
+        )
+    })?;
+
+    let push_mods_base = config.push_mods.ok_or_else(|| {
+        anyhow::anyhow!(
+            "push_mods not configured. run: {} and set paths",
+            "margo config".cyan()
+        )
+    })?;
+
+    // outcome variable (default to exposure if not specified)
+    let outcome_var = outcome.unwrap_or("outcome_variable");
+
+    // outcome waves (default to 2011-2023 if not specified)
+    let default_waves: Vec<String> = (2011..=2023).map(|y| y.to_string()).collect();
+    let outcome_waves = waves.unwrap_or(&default_waves);
+
+    // reference wave (default to first outcome wave)
+    let reference_wave = reference.unwrap_or_else(|| {
+        outcome_waves.first().map(|s| s.as_str()).unwrap_or("2011")
+    });
+
+    // generate project name
+    let project_name = custom_name.map(|s| s.to_string()).unwrap_or_else(|| {
+        format!("{}-event-study", exposure)
+    });
+
+    // load baselines template (no defaults - user must specify)
+    let baseline_vars = Config::load_baselines(baselines_name)
+        .map(|t| t.vars)
+        .unwrap_or_else(|| {
+            println!(
+                "{} baseline template '{}' not found, using empty baseline",
+                "note:".cyan().bold(),
+                baselines_name
+            );
+            println!("  edit study.toml to add baseline variables");
+            Vec::new()
+        });
+
+    // create push_mods project subfolder
+    let push_mods_path = format!("{}/{}", push_mods_base, project_name);
+    fs::create_dir_all(&push_mods_path)
+        .with_context(|| format!("failed to create output directory '{}'", push_mods_path))?;
+
+    println!(
+        "{} GRF Event Study project '{}'",
+        "Creating".green().bold(),
+        project_name.cyan()
+    );
+    println!(
+        "  exposure: {} | outcome: {} | waves: {}",
+        exposure.cyan(),
+        outcome_var.cyan(),
+        format!("{} waves", outcome_waves.len()).cyan()
+    );
+
+    // write scripts to current directory
+    let files = grf_event::get_template_files_with_config(
+        &project_name,
+        &pull_data,
+        &push_mods_path,
+        exposure,
+        &baseline_vars,
+        outcome_var,
+        outcome_waves,
+        reference_wave,
+    );
+
+    for (filename, content) in files {
+        fs::write(&filename, content)
+            .with_context(|| format!("failed to write '{}'", filename))?;
+        println!("  {} {}", "wrote".green(), filename);
+    }
+
+    println!();
+    println!("{}", "Project created successfully!".green().bold());
+    println!();
+    println!("Scripts created in current directory");
+    println!("Outputs will be written to: {}", push_mods_path.cyan());
+    println!();
+    println!("Next steps:");
+    println!("  1. Review {} and adjust wave definitions", "study.toml".cyan());
+    println!("  2. Run scripts in order: 01, 02, 03...");
+    println!();
+
+    Ok(())
 }

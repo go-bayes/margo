@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2025-12-07
+
+### Added
+- `margo init grf-event` command for longitudinal event studies
+  - Multi-outcome wave design (e.g., earthquake effects over 12 years)
+  - Configurable wave column (`time_factor` or `wave`)
+  - 7 R scripts: data-prep, wide-format, causal-forest, trajectory-plot, heterogeneity, positivity, tables
+  - ATE trajectory visualisation with confidence intervals and sample size panel
+
 ## [0.2.0] - 2025-12-07
 
 ### Added

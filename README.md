@@ -93,7 +93,8 @@ Then run scripts in order: `01-data-prep.R`, `02-wide-format.R`, etc.
 
 | Template | Description | Status |
 |----------|-------------|--------|
-| `grf` | Generalised Random Forests (heterogeneous treatment effects) | ✓ Available |
+| `grf` | Generalised Random Forests (3-wave heterogeneous treatment effects) | ✓ Available |
+| `grf-event` | GRF Event Study (multi-outcome waves for effect trajectories) | ✓ Available |
 | `lmtp` | Longitudinal Modified Treatment Policies | Planned |
 
 ## CLI Examples
@@ -162,6 +163,31 @@ margo config path
 margo config edit
 ```
 
+### GRF Event Study (multi-outcome waves)
+
+For longitudinal event studies where a single exposure is followed by multiple outcome waves:
+
+```bash
+# basic event study
+margo init grf-event earthquake_affected -o religion_religious
+
+# specify outcome waves and reference wave (t=0)
+margo init grf-event earthquake_affected \
+  -o religion_religious \
+  -w 2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023 \
+  -r 2011 \
+  -n chch-earthquake-faith
+
+# use custom baseline template
+margo init grf-event flood_exposure -o mental_health -b extended
+```
+
+This generates scripts that:
+1. Fit causal forests for each outcome wave
+2. Collect ATEs across waves
+3. Plot effect trajectory over time
+4. Run heterogeneity tests on significant waves
+
 ### Interactive mode
 
 ```bash
@@ -175,6 +201,7 @@ margo new
 margo --help
 margo init --help
 margo init grf --help
+margo init grf-event --help
 margo config --help
 ```
 

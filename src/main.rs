@@ -70,6 +70,31 @@ enum InitTemplate {
         #[arg(long, short = 'w', default_value = "default")]
         who_mode: String,
     },
+    /// Create a GRF Event Study project (multi-outcome waves)
+    GrfEvent {
+        /// Exposure variable name
+        exposure: String,
+
+        /// Outcome variable name (single variable measured across waves)
+        #[arg(long, short = 'o')]
+        outcome: Option<String>,
+
+        /// Outcome waves (comma-separated, e.g., "2011,2012,2013,2014")
+        #[arg(long, short = 'w', value_delimiter = ',')]
+        waves: Option<Vec<String>>,
+
+        /// Reference wave for t=0 (default: first outcome wave)
+        #[arg(long, short = 'r')]
+        reference: Option<String>,
+
+        /// Baseline template to use (default: "default")
+        #[arg(long, short = 'b', default_value = "default")]
+        baselines: String,
+
+        /// Custom project name
+        #[arg(long, short = 'n')]
+        name: Option<String>,
+    },
     /// Create an LMTP (Longitudinal Modified Treatment Policies) project
     Lmtp {
         /// Exposure variable name
@@ -90,6 +115,16 @@ fn main() -> Result<()> {
                     &baselines,
                     name.as_deref(),
                     &who_mode,
+                )?;
+            }
+            InitTemplate::GrfEvent { exposure, outcome, waves, reference, baselines, name } => {
+                commands::init::grf_event_from_config(
+                    &exposure,
+                    outcome.as_deref(),
+                    waves.as_deref(),
+                    reference.as_deref(),
+                    &baselines,
+                    name.as_deref(),
                 )?;
             }
             InitTemplate::Lmtp { exposure: _ } => {
