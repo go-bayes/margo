@@ -42,13 +42,12 @@ impl Prompt for MargoPrompt {
                 theme::overlay0().paint("insert")
             ))
         } else {
-            // show quit hint in insert mode
+            // show hints in insert mode
             Cow::Owned(format!(
-                "{} {} {} {}",
+                "{}  {}  {}",
                 theme::overlay0().paint("/help"),
-                theme::overlay0().paint("•"),
-                theme::overlay0().paint(":q"),
-                theme::overlay0().paint("quit")
+                theme::overlay0().paint("/home"),
+                theme::overlay0().paint("/q"),
             ))
         }
     }

@@ -13,6 +13,7 @@ pub fn grf_from_config(
     direct_outcomes: Option<&[String]>,
     outcome_templates: Option<&[String]>,
     baselines_name: &str,
+    baselines_override: Option<&[String]>,
     custom_name: Option<&str>,
     who_mode: &str,
 ) -> Result<()> {
@@ -74,17 +75,21 @@ pub fn grf_from_config(
         exposure.to_string()
     });
 
-    // load baselines template
-    let baseline_vars = Config::load_baselines(baselines_name)
-        .map(|t| t.vars)
-        .unwrap_or_else(|| {
-            println!(
-                "{} baseline template '{}' not found, using empty",
-                Color::Yellow.bold().paint("warning:"),
-                baselines_name
-            );
-            Vec::new()
-        });
+    // load baselines: use override if provided, otherwise load from template
+    let baseline_vars = if let Some(override_vars) = baselines_override {
+        override_vars.to_vec()
+    } else {
+        Config::load_baselines(baselines_name)
+            .map(|t| t.vars)
+            .unwrap_or_else(|| {
+                println!(
+                    "{} baseline template '{}' not found, using empty",
+                    Color::Yellow.bold().paint("warning:"),
+                    baselines_name
+                );
+                Vec::new()
+            })
+    };
 
     // create push_mods project subfolder
     let push_mods_path = format!("{}/{}", push_mods_base, project_name);

@@ -1,15 +1,18 @@
 // slash command handlers
 
 use anyhow::{bail, Result};
+use std::env;
 use std::fs;
 use std::process::Command;
 
 use crate::commands::init;
 use crate::config::Config;
+use crate::data::VARIABLES;
 use crate::theme;
 
 use super::fuzzy;
 use super::picker;
+use super::welcome;
 
 /// handle a slash command (without the leading /)
 pub fn handle_slash(cmd: &str) -> Result<()> {
@@ -17,6 +20,7 @@ pub fn handle_slash(cmd: &str) -> Result<()> {
     let (command, args) = parts.split_first().map(|(&c, a)| (c, a)).unwrap_or(("", &[]));
 
     match command {
+        "" => cmd_picker(),
         "help" | "h" | "?" => cmd_help(),
         "config" => cmd_config(args),
         "templates" => cmd_templates(args),
@@ -24,7 +28,11 @@ pub fn handle_slash(cmd: &str) -> Result<()> {
         "save" => cmd_save(args),
         "vars" | "v" => cmd_vars(args),
         "theme" | "t" => cmd_theme(args),
-        "clear" => cmd_clear(),
+        "here" | "pwd" => cmd_here(),
+        "home" | "~" => cmd_home(),
+        "cd" => cmd_cd(args),
+        "e" | "o" => cmd_quick_edit(args),
+        "refresh" | "r" => cmd_refresh(),
         _ => {
             println!(
                 "{} unknown command: /{}",
@@ -140,26 +148,118 @@ fn handle_init_grf(args: &[&str]) -> Result<()> {
 
     println!();
 
-    // step 1: baseline template (if not provided)
-    let baselines = if let Some(b) = baselines {
-        b
+    // step 1: validate exposure FIRST if provided on command line
+    let exposure = if let Some(e) = exposure {
+        if VARIABLES.contains(&e.as_str()) {
+            Some(e)
+        } else {
+            // fuzzy search for similar variables
+            let matches: Vec<String> = fuzzy::search_variables(&e)
+                .into_iter()
+                .take(10)
+                .map(String::from)
+                .collect();
+
+            if matches.is_empty() {
+                println!(
+                    "{} variable '{}' not found",
+                    theme::red().paint("error:"),
+                    e
+                );
+                return Ok(());
+            }
+
+            println!(
+                "{} '{}' not found, showing similar:",
+                theme::yellow().paint("note:"),
+                e
+            );
+
+            match picker::pick_from_matches(&matches)? {
+                Some(selected) => Some(selected),
+                None => {
+                    println!("{}", theme::yellow().paint("cancelled"));
+                    return Ok(());
+                }
+            }
+        }
+    } else {
+        None
+    };
+
+    // step 2: baseline template (if not provided)
+    let (baseline, baseline_vars_override) = if let Some(b) = baselines {
+        (b, None)
     } else {
         let available = Config::list_baselines();
         if available.is_empty() {
             println!(
                 "{}",
-                theme::subtext0().paint("No baseline templates found, using default")
+                theme::subtext0().paint("no baseline templates found, using default")
             );
-            "default".to_string()
+            ("default".to_string(), None)
         } else {
-            match picker::pick_baseline(&available)? {
-                Some(selected) => selected,
-                None => "default".to_string(),
+            // offer choice: use template as-is, modify, or pick custom
+            let methods = vec![
+                "template     — use saved baseline template",
+                "modify       — edit template variables",
+                "custom       — pick individual variables",
+            ];
+
+            let method = inquire::Select::new("Select baseline from:", methods)
+                .with_help_message("↑↓ navigate, Enter select, Esc cancel")
+                .prompt_skippable()?;
+
+            match method {
+                Some(m) if m.starts_with("template") => {
+                    match picker::pick_baseline(&available)? {
+                        Some(selected) => (selected, None),
+                        None => {
+                            println!("{}", theme::yellow().paint("cancelled"));
+                            return Ok(());
+                        }
+                    }
+                }
+                Some(m) if m.starts_with("modify") => {
+                    // pick template then edit its variables
+                    let tpl_name = match picker::pick_baseline(&available)? {
+                        Some(selected) => selected,
+                        None => {
+                            println!("{}", theme::yellow().paint("cancelled"));
+                            return Ok(());
+                        }
+                    };
+                    // load template vars and let user modify
+                    let current_vars = Config::load_baselines(&tpl_name)
+                        .map(|t| t.vars)
+                        .unwrap_or_default();
+                    match picker::edit_template(&tpl_name, &current_vars)? {
+                        Some(vars) => (tpl_name, Some(vars)),
+                        None => {
+                            println!("{}", theme::yellow().paint("cancelled"));
+                            return Ok(());
+                        }
+                    }
+                }
+                Some(m) if m.starts_with("custom") => {
+                    // pick individual variables
+                    match picker::pick_outcomes()? {
+                        Some(vars) if !vars.is_empty() => ("custom".to_string(), Some(vars)),
+                        _ => {
+                            println!("{}", theme::yellow().paint("cancelled"));
+                            return Ok(());
+                        }
+                    }
+                }
+                _ => {
+                    println!("{}", theme::yellow().paint("cancelled"));
+                    return Ok(());
+                }
             }
         }
     };
 
-    // step 2: exposure variable (if not provided)
+    // step 3: exposure picker (if not provided on command line)
     let exposure = if let Some(e) = exposure {
         e
     } else {
@@ -172,17 +272,113 @@ fn handle_init_grf(args: &[&str]) -> Result<()> {
         }
     };
 
-    // step 3: outcome variables (if not provided and no templates)
+    // step 4: outcome variables (if not provided and no templates)
     if outcomes.is_empty() && templates.is_none() {
-        match picker::pick_outcomes()? {
-            Some(selected) if !selected.is_empty() => outcomes = selected,
-            _ => {
-                println!(
-                    "{}",
-                    theme::subtext0().paint("No outcomes selected - add them to study.toml later")
-                );
+        // offer choice: templates or individual variables
+        let available_templates = Config::list_outcomes();
+
+        if available_templates.is_empty() {
+            // no templates, just pick variables
+            match picker::pick_outcomes()? {
+                Some(selected) if !selected.is_empty() => outcomes = selected,
+                _ => {
+                    println!("{}", theme::yellow().paint("cancelled"));
+                    return Ok(());
+                }
+            }
+        } else {
+            // offer method choice
+            let methods = vec![
+                "templates    — use saved outcome templates",
+                "variables    — pick individual variables",
+            ];
+
+            let method = inquire::Select::new("Select outcomes from:", methods)
+                .with_help_message("↑↓ navigate, Enter select, Esc cancel")
+                .prompt_skippable()?;
+
+            match method {
+                Some(m) if m.starts_with("templates") => {
+                    // pick from templates
+                    match picker::browse_templates("Select outcome template:", &available_templates)? {
+                        Some(tpl_name) => {
+                            templates = Some(vec![tpl_name]);
+                        }
+                        None => {
+                            println!("{}", theme::yellow().paint("cancelled"));
+                            return Ok(());
+                        }
+                    }
+                }
+                Some(m) if m.starts_with("variables") => {
+                    match picker::pick_outcomes()? {
+                        Some(selected) if !selected.is_empty() => outcomes = selected,
+                        _ => {
+                            println!("{}", theme::yellow().paint("cancelled"));
+                            return Ok(());
+                        }
+                    }
+                }
+                _ => {
+                    println!("{}", theme::yellow().paint("cancelled"));
+                    return Ok(());
+                }
             }
         }
+    }
+
+    // step 4: show summary and confirm
+    println!();
+    println!("  {}", theme::peach().paint("Project Summary"));
+    println!(
+        "  {}",
+        theme::overlay0().paint("─────────────────────────────────────────────")
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("exposure:"),
+        theme::text().paint(&exposure)
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("baseline:"),
+        theme::text().paint(&baseline)
+    );
+
+    // show outcomes (from direct args or templates)
+    let outcome_display = if !outcomes.is_empty() {
+        format_outcomes_list(&outcomes)
+    } else if let Some(ref tpls) = templates {
+        format!("from templates: {}", tpls.join(", "))
+    } else {
+        "none".to_string()
+    };
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("outcomes:"),
+        theme::text().paint(&outcome_display)
+    );
+
+    // show output directory
+    let config = Config::load();
+    let project_name = name.clone().unwrap_or_else(|| {
+        let year = chrono_year();
+        format!("{}-{}", year, exposure.replace('_', "-"))
+    });
+    if let Some(ref push_mods) = config.push_mods {
+        println!(
+            "  {} {}/{}",
+            theme::subtext0().paint("output:"),
+            theme::text().paint(shorten_path(push_mods)),
+            theme::text().paint(&project_name)
+        );
+    }
+    println!();
+
+    // confirm before creating
+    if !picker::confirm_create()? {
+        println!("{}", theme::yellow().paint("cancelled"));
+        return Ok(());
     }
 
     println!();
@@ -195,10 +391,35 @@ fn handle_init_grf(args: &[&str]) -> Result<()> {
             Some(&outcomes)
         },
         templates.as_deref(),
-        &baselines,
+        &baseline,
+        baseline_vars_override.as_deref(),
         name.as_deref(),
         &who_mode,
     )
+}
+
+fn format_outcomes_list(outcomes: &[String]) -> String {
+    if outcomes.len() <= 3 {
+        outcomes.join(", ")
+    } else {
+        format!(
+            "{}, ... ({} total)",
+            outcomes[..3].join(", "),
+            outcomes.len()
+        )
+    }
+}
+
+fn chrono_year() -> String {
+    // simple year extraction without chrono dependency
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    // approximate year calculation (good enough for project naming)
+    let years_since_1970 = secs / 31_536_000; // seconds per year
+    format!("{}", 1970 + years_since_1970)
 }
 
 fn handle_init_grf_event(args: &[&str]) -> Result<()> {
@@ -250,22 +471,67 @@ fn handle_init_grf_event(args: &[&str]) -> Result<()> {
 
     println!();
 
-    // step 1: baseline template
-    let baselines = if let Some(b) = baselines {
+    // step 1: validate exposure FIRST if provided on command line
+    let exposure = if let Some(e) = exposure {
+        if VARIABLES.contains(&e.as_str()) {
+            Some(e)
+        } else {
+            let matches: Vec<String> = fuzzy::search_variables(&e)
+                .into_iter()
+                .take(10)
+                .map(String::from)
+                .collect();
+
+            if matches.is_empty() {
+                println!(
+                    "{} variable '{}' not found",
+                    theme::red().paint("error:"),
+                    e
+                );
+                return Ok(());
+            }
+
+            println!(
+                "{} '{}' not found, showing similar:",
+                theme::yellow().paint("note:"),
+                e
+            );
+
+            match picker::pick_from_matches(&matches)? {
+                Some(selected) => Some(selected),
+                None => {
+                    println!("{}", theme::yellow().paint("cancelled"));
+                    return Ok(());
+                }
+            }
+        }
+    } else {
+        None
+    };
+
+    // step 2: baseline template
+    let baseline = if let Some(b) = baselines {
         b
     } else {
         let available = Config::list_baselines();
         if available.is_empty() {
+            println!(
+                "{}",
+                theme::subtext0().paint("no baseline templates found, using default")
+            );
             "default".to_string()
         } else {
             match picker::pick_baseline(&available)? {
                 Some(selected) => selected,
-                None => "default".to_string(),
+                None => {
+                    println!("{}", theme::yellow().paint("cancelled"));
+                    return Ok(());
+                }
             }
         }
     };
 
-    // step 2: exposure variable
+    // step 3: exposure picker (if not provided on command line)
     let exposure = if let Some(e) = exposure {
         e
     } else {
@@ -279,11 +545,105 @@ fn handle_init_grf_event(args: &[&str]) -> Result<()> {
     };
 
     // step 3: outcome variable (single for event study)
-    if outcome.is_none() {
-        match picker::pick_variable("Select outcome variable:")? {
-            Some(selected) => outcome = Some(selected),
-            None => {}
+    let outcome = if let Some(o) = outcome {
+        // validate outcome
+        if VARIABLES.contains(&o.as_str()) {
+            Some(o)
+        } else {
+            let matches: Vec<String> = fuzzy::search_variables(&o)
+                .into_iter()
+                .take(10)
+                .map(String::from)
+                .collect();
+
+            if matches.is_empty() {
+                println!(
+                    "{} outcome '{}' not found",
+                    theme::red().paint("error:"),
+                    o
+                );
+                return Ok(());
+            }
+
+            println!(
+                "{} '{}' not found, showing similar:",
+                theme::yellow().paint("note:"),
+                o
+            );
+
+            match picker::pick_from_matches(&matches)? {
+                Some(selected) => Some(selected),
+                None => {
+                    println!("{}", theme::yellow().paint("cancelled"));
+                    return Ok(());
+                }
+            }
         }
+    } else {
+        match picker::pick_variable("Select outcome variable:")? {
+            Some(selected) => Some(selected),
+            None => {
+                println!("{}", theme::yellow().paint("cancelled"));
+                return Ok(());
+            }
+        }
+    };
+
+    // step 4: show summary and confirm
+    println!();
+    println!("  {}", theme::peach().paint("Project Summary"));
+    println!(
+        "  {}",
+        theme::overlay0().paint("─────────────────────────────────────────────")
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("type:"),
+        theme::text().paint("grf-event (longitudinal)")
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("exposure:"),
+        theme::text().paint(&exposure)
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("baseline:"),
+        theme::text().paint(&baseline)
+    );
+    if let Some(ref o) = outcome {
+        println!(
+            "  {} {}",
+            theme::subtext0().paint("outcome:"),
+            theme::text().paint(o)
+        );
+    }
+    if let Some(ref w) = waves {
+        println!(
+            "  {} {}",
+            theme::subtext0().paint("waves:"),
+            theme::text().paint(&w.join(", "))
+        );
+    }
+
+    let config = Config::load();
+    let project_name = name.clone().unwrap_or_else(|| {
+        let year = chrono_year();
+        format!("{}-{}-event", year, exposure.replace('_', "-"))
+    });
+    if let Some(ref push_mods) = config.push_mods {
+        println!(
+            "  {} {}/{}",
+            theme::subtext0().paint("output:"),
+            theme::text().paint(shorten_path(push_mods)),
+            theme::text().paint(&project_name)
+        );
+    }
+    println!();
+
+    if !picker::confirm_create()? {
+        println!("{}", theme::yellow().paint("cancelled"));
+        return Ok(());
     }
 
     println!();
@@ -293,7 +653,7 @@ fn handle_init_grf_event(args: &[&str]) -> Result<()> {
         outcome.as_deref(),
         waves.as_deref(),
         reference.as_deref(),
-        &baselines,
+        &baseline,
         name.as_deref(),
     )
 }
@@ -343,8 +703,12 @@ fn cmd_help() -> Result<()> {
     print_help_item("/view [name]", "browse templates and their variables");
     print_help_item("/save <type> <name>", "create new template from variable picker");
     print_help_item("/theme [light|dark]", "toggle or set theme");
-    print_help_item("/clear", "clear the screen");
-    print_help_item("/quit, /q", "exit margo");
+    print_help_item("/e, /o [name]", "quick edit template in $EDITOR");
+    print_help_item("/here, /pwd", "show current directory");
+    print_help_item("/home, /~", "go home + refresh");
+    print_help_item("/cd <path>", "change directory");
+    print_help_item("/refresh, /r", "clear + show welcome");
+    print_help_item("/quit, /q, q", "exit margo");
     println!();
 
     println!("  {}", theme::subtext1().paint("Init commands"));
@@ -1093,10 +1457,175 @@ fn cmd_theme(args: &[&str]) -> Result<()> {
     Ok(())
 }
 
-fn cmd_clear() -> Result<()> {
-    // ansi escape to clear screen and move cursor to top
+fn cmd_refresh() -> Result<()> {
+    // clear screen and show welcome
     print!("\x1B[2J\x1B[1;1H");
+    welcome::print_welcome();
     Ok(())
+}
+
+fn cmd_picker() -> Result<()> {
+    // fuzzy command picker when user types just "/"
+    let commands = vec![
+        "help         — show all commands",
+        "config       — show/edit configuration",
+        "templates    — list templates",
+        "view         — browse template variables",
+        "save         — create new template",
+        "vars         — browse variables",
+        "theme        — toggle light/dark",
+        "e            — edit template",
+        "here         — show current directory",
+        "home         — go home + refresh",
+        "cd           — change directory",
+        "refresh      — clear + show welcome",
+        "quit         — exit margo",
+    ];
+
+    let result = inquire::Select::new("Command:", commands)
+        .with_page_size(15)
+        .with_help_message("↑↓ navigate, type to filter, Enter select, Esc cancel")
+        .prompt_skippable()?;
+
+    match result {
+        Some(selected) => {
+            // extract command name (first word before spaces/dash)
+            let cmd = selected.split_whitespace().next().unwrap_or("");
+            // recursively handle the selected command
+            handle_slash(cmd)
+        }
+        None => Ok(()),
+    }
+}
+
+fn cmd_quick_edit(args: &[&str]) -> Result<()> {
+    // /e <name> or /o <name> - quick open template in editor
+    if args.is_empty() {
+        // no name given - show picker
+        let outcomes = Config::list_outcomes();
+        let baselines = Config::list_baselines();
+        let mut all: Vec<String> = outcomes;
+        all.extend(baselines);
+        all.sort();
+        all.dedup();
+
+        if all.is_empty() {
+            println!(
+                "  {} no templates found",
+                theme::yellow().paint("note:")
+            );
+            return Ok(());
+        }
+
+        match picker::browse_templates("Select template to edit:", &all)? {
+            Some(name) => {
+                // try outcomes first, then baselines
+                let path = if Config::outcomes_dir().join(format!("{}.toml", name)).exists() {
+                    Config::outcomes_dir().join(format!("{}.toml", name))
+                } else {
+                    Config::baselines_dir().join(format!("{}.toml", name))
+                };
+                open_in_editor(&path.to_string_lossy())?;
+            }
+            None => {}
+        }
+        return Ok(());
+    }
+
+    let name = args[0];
+
+    // try outcomes first, then baselines
+    let outcomes_path = Config::outcomes_dir().join(format!("{}.toml", name));
+    let baselines_path = Config::baselines_dir().join(format!("{}.toml", name));
+
+    if outcomes_path.exists() {
+        open_in_editor(&outcomes_path.to_string_lossy())?;
+    } else if baselines_path.exists() {
+        open_in_editor(&baselines_path.to_string_lossy())?;
+    } else {
+        println!(
+            "  {} template '{}' not found",
+            theme::yellow().paint("note:"),
+            name
+        );
+        println!(
+            "  {} /save outcomes {} or /save baselines {}",
+            theme::subtext0().paint("create with:"),
+            name,
+            name
+        );
+    }
+
+    Ok(())
+}
+
+fn cmd_here() -> Result<()> {
+    let cwd = env::current_dir()?;
+    let display = shorten_path(&cwd.to_string_lossy());
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("cwd:"),
+        theme::text().paint(&display)
+    );
+    Ok(())
+}
+
+fn cmd_home() -> Result<()> {
+    let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("cannot find home directory"))?;
+    env::set_current_dir(&home)?;
+    // clear and show welcome with updated cwd
+    print!("\x1B[2J\x1B[1;1H");
+    welcome::print_welcome();
+    Ok(())
+}
+
+fn cmd_cd(args: &[&str]) -> Result<()> {
+    if args.is_empty() {
+        // no args = go home
+        return cmd_home();
+    }
+
+    let target = args[0];
+
+    // expand ~ to home directory
+    let path = if target.starts_with('~') {
+        let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("cannot find home directory"))?;
+        if target == "~" {
+            home
+        } else {
+            home.join(&target[2..]) // skip "~/"
+        }
+    } else {
+        std::path::PathBuf::from(target)
+    };
+
+    if !path.exists() {
+        bail!("directory not found: {}", target);
+    }
+
+    if !path.is_dir() {
+        bail!("not a directory: {}", target);
+    }
+
+    env::set_current_dir(&path)?;
+    let display = shorten_path(&path.to_string_lossy());
+    println!(
+        "  {} {}",
+        theme::teal().paint("changed to:"),
+        theme::text().paint(&display)
+    );
+    Ok(())
+}
+
+fn shorten_path(path: &str) -> String {
+    if let Some(home) = dirs::home_dir() {
+        if let Some(home_str) = home.to_str() {
+            if path.starts_with(home_str) {
+                return format!("~{}", &path[home_str.len()..]);
+            }
+        }
+    }
+    path.to_string()
 }
 
 fn open_in_editor(path: &str) -> Result<()> {

@@ -1,12 +1,13 @@
-// welcome screen with logo and tips
+// welcome screen with logo and config
 
 use crate::config::Config;
 use crate::theme;
+use std::env;
 
 pub fn print_welcome() {
     print_logo();
+    print_config();
     print_tips();
-    print_defaults();
     println!();
 }
 
@@ -24,31 +25,7 @@ fn print_logo() {
     println!();
 }
 
-fn print_tips() {
-    println!("  {}", theme::peach().paint("Tips"));
-    println!(
-        "  {}",
-        theme::overlay0().paint("─────────────────────────────────────────────")
-    );
-    print_tip("/help", "show available commands");
-    print_tip("/templates", "list outcome & baseline templates");
-    print_tip("/vars [pattern]", "fuzzy search variables");
-    print_tip("init grf", "scaffold a grf project");
-    print_tip("Tab", "autocomplete commands & variables");
-    print_tip("Ctrl+R", "search command history");
-    println!();
-}
-
-fn print_tip(cmd: &str, desc: &str) {
-    println!(
-        "  {}  {:<18} {}",
-        theme::overlay0().paint("•"),
-        theme::sapphire().paint(cmd),
-        theme::subtext0().paint(desc)
-    );
-}
-
-fn print_defaults() {
+fn print_config() {
     let config = Config::load();
 
     let data = config
@@ -69,18 +46,57 @@ fn print_defaults() {
         .cloned()
         .unwrap_or_else(|| "default".to_string());
 
+    let cwd = env::current_dir()
+        .map(|p| shorten_path(&p.to_string_lossy()))
+        .unwrap_or_else(|_| "unknown".to_string());
+
+    println!("  {}", theme::peach().paint("Config"));
     println!(
         "  {}",
         theme::overlay0().paint("─────────────────────────────────────────────")
     );
+    print_config_line("data", &data);
+    print_config_line("output", &output);
+    print_config_line("baselines", &baselines);
+    print_config_line("cwd", &cwd);
+    println!();
+}
+
+fn print_config_line(label: &str, value: &str) {
+    let style = if value == "not set" {
+        theme::overlay0()
+    } else {
+        theme::text()
+    };
     println!(
-        "  {}: {}   {}: {}   {}: {}",
-        theme::subtext0().paint("data"),
-        theme::text().paint(&data),
-        theme::subtext0().paint("output"),
-        theme::text().paint(&output),
-        theme::subtext0().paint("baselines"),
-        theme::text().paint(&baselines),
+        "  {}  {:<10} {}",
+        theme::overlay0().paint("•"),
+        theme::subtext0().paint(label),
+        style.paint(value)
+    );
+}
+
+fn print_tips() {
+    println!("  {}", theme::peach().paint("Tips"));
+    println!(
+        "  {}",
+        theme::overlay0().paint("─────────────────────────────────────────────")
+    );
+    print_tip("/help", "commands");
+    print_tip("/vars", "browse variables");
+    print_tip("/e", "edit template");
+    print_tip("init", "scaffold project");
+    print_tip("/r", "refresh screen");
+    print_tip("q", "quit");
+    println!();
+}
+
+fn print_tip(cmd: &str, desc: &str) {
+    println!(
+        "  {}  {:<12} {}",
+        theme::overlay0().paint("•"),
+        theme::sapphire().paint(cmd),
+        theme::subtext0().paint(desc)
     );
 }
 

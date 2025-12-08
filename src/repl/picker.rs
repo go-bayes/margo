@@ -89,7 +89,7 @@ pub fn pick_outcomes() -> Result<Option<Vec<String>>> {
 
     let result = MultiSelect::new("Select outcome variables:", variables)
         .with_page_size(15)
-        .with_help_message("↑↓ navigate, Space select, Enter confirm, Esc cancel")
+        .with_help_message("↑↓ move, Space toggle, type to filter, Enter done")
         .with_render_config(catppuccin_config())
         .prompt_skippable()?;
 
@@ -111,8 +111,10 @@ pub fn pick_variable(prompt: &str) -> Result<Option<String>> {
 }
 
 /// pick a baseline template
+/// returns None if cancelled (Esc pressed)
 pub fn pick_baseline(available: &[String]) -> Result<Option<String>> {
     if available.is_empty() {
+        // no templates configured, use default without prompting
         return Ok(Some("default".to_string()));
     }
 
@@ -126,11 +128,11 @@ pub fn pick_baseline(available: &[String]) -> Result<Option<String>> {
     let result = Select::new("Select baseline template:", options)
         .with_vim_mode(true)
         .with_page_size(10)
-        .with_help_message("↑↓ navigate, Enter select, Esc for default")
+        .with_help_message("↑↓ navigate, Enter select, Esc cancel")
         .with_render_config(catppuccin_config())
         .prompt_skippable()?;
 
-    Ok(result.map(|s| s.to_string()).or(Some("default".to_string())))
+    Ok(result.map(|s| s.to_string()))
 }
 
 /// pick model type (grf, grf-event, lmtp)
@@ -165,14 +167,50 @@ pub fn edit_template(name: &str, current_vars: &[String]) -> Result<Option<Vec<S
     let prompt = format!("Edit template '{}' ({} vars):", name, current_vars.len());
 
     let result = MultiSelect::new(&prompt, variables)
-        .with_vim_mode(true)
         .with_page_size(15)
         .with_default(&defaults)
-        .with_help_message("↑↓ navigate, Space toggle, / filter, Enter save, Esc cancel")
+        .with_help_message("↑↓ move, Space toggle, type to filter, Enter done")
         .with_render_config(catppuccin_config())
         .prompt_skippable()?;
 
-    Ok(result.map(|v| v.into_iter().map(|s| s.to_string()).collect()))
+    match result {
+        Some(selected) => {
+            let vars: Vec<String> = selected.into_iter().map(|s| s.to_string()).collect();
+            // show confirmation
+            if confirm_selection(&vars)? {
+                Ok(Some(vars))
+            } else {
+                Ok(None)
+            }
+        }
+        None => Ok(None),
+    }
+}
+
+/// confirm variable selection
+fn confirm_selection(vars: &[String]) -> Result<bool> {
+    use crate::theme;
+
+    println!();
+    println!("  {} {} variables selected:",
+        theme::peach().paint("Summary:"),
+        vars.len()
+    );
+
+    // show first few vars
+    let display_count = 5.min(vars.len());
+    for var in vars.iter().take(display_count) {
+        println!("    {} {}", theme::overlay0().paint("•"), theme::text().paint(var));
+    }
+    if vars.len() > display_count {
+        println!("    {} ... and {} more",
+            theme::overlay0().paint("•"),
+            vars.len() - display_count
+        );
+    }
+    println!();
+
+    confirm_create()
 }
 
 /// browse variables interactively (view-only, scrollable)
@@ -208,9 +246,32 @@ pub fn pick_outcomes_for_save(prompt: &str) -> Result<Option<Vec<String>>> {
 
     let result = MultiSelect::new(prompt, variables)
         .with_page_size(20)
-        .with_help_message("↑↓ scroll, Space select, Enter confirm, Esc cancel")
+        .with_help_message("↑↓ move, Space toggle, type to filter, Enter done")
         .with_render_config(catppuccin_config())
         .prompt_skippable()?;
 
     Ok(result.map(|v| v.into_iter().map(|s| s.to_string()).collect()))
+}
+
+/// pick from a list of fuzzy-matched variables
+pub fn pick_from_matches(matches: &[String]) -> Result<Option<String>> {
+    let items: Vec<&str> = matches.iter().map(String::as_str).collect();
+
+    let result = Select::new("Select variable:", items)
+        .with_page_size(10)
+        .with_help_message("↑↓ navigate, Enter select, Esc cancel")
+        .with_render_config(catppuccin_config())
+        .prompt_skippable()?;
+
+    Ok(result.map(|s| s.to_string()))
+}
+
+/// confirm project creation
+pub fn confirm_create() -> Result<bool> {
+    let result = inquire::Confirm::new("Create project?")
+        .with_default(true)
+        .with_render_config(catppuccin_config())
+        .prompt()?;
+
+    Ok(result)
 }

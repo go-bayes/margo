@@ -12,15 +12,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Catppuccin Latte (light) and Mocha (dark) palettes
   - `/theme toggle`, `/theme light`, `/theme dark`, `/theme show`
 - `/view` command to browse templates with variable preview
-  - `/view` opens interactive picker
-  - `/view <name>` shows template variables
 - `/save <type> <name>` command to create templates on-the-fly
-  - Opens variable picker, saves selection to config directory
-  - Validates template type and name format
+- Navigation commands: `/home`, `/cd`, `/here`, `/refresh` (`/r`)
+- `/e` and `/o` quick edit aliases for templates
+- `/` command picker (fuzzy find commands)
+- Baseline selection options: template, modify (edit vars), custom
+- Outcome selection: choice between templates or individual variables
+- Confirmation step showing selected variables before proceeding
+
+### Changed
+- Init flow validates exposure variable before showing other pickers
+- Escape at any picker cancels entire init flow
+- Project summary shown before creating files with y/n confirmation
+- Welcome screen shows config (data, output, baselines, cwd) + tips
+- Prompt hints now show `/help  /home  /q`
+- Clearer help messages: `↑↓ move, Space toggle, type to filter, Enter done`
+
+### Removed
+- `/clear` command (use `/r` or `/refresh` instead)
 
 ### Fixed
-- Tab autocomplete now displays completion menu (added `ColumnarMenu`)
-- `/vars` now scrollable through all 530 variables (was truncated to 20)
+- Tab autocomplete now displays completion menu
+- `/vars` now scrollable through all 530 variables
+- Vim mode disabled in variable pickers so j/k can filter
 
 ## [0.3.0] - 2025-12-09
 

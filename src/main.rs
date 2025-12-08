@@ -134,6 +134,7 @@ fn main() -> Result<()> {
                     },
                     templates.as_deref(),
                     &baselines,
+                    None, // no baseline override from CLI
                     name.as_deref(),
                     &who_mode,
                 )?;
