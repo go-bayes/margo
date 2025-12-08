@@ -3,14 +3,20 @@
 use nu_ansi_term::Style;
 use reedline::{Prompt, PromptEditMode, PromptHistorySearch, PromptHistorySearchStatus, PromptViMode};
 use std::borrow::Cow;
+use std::cell::Cell;
 
 use crate::theme;
 
-pub struct MargoPrompt;
+pub struct MargoPrompt {
+    // track vi mode for right prompt hint
+    vi_normal: Cell<bool>,
+}
 
 impl MargoPrompt {
     pub fn new() -> Self {
-        Self
+        Self {
+            vi_normal: Cell::new(false),
+        }
     }
 }
 
@@ -26,23 +32,45 @@ impl Prompt for MargoPrompt {
     }
 
     fn render_prompt_right(&self) -> Cow<str> {
-        Cow::Borrowed("")
+        if self.vi_normal.get() {
+            // show hint in normal mode
+            Cow::Owned(format!(
+                "{} {} {} {}",
+                theme::overlay0().paint("NORMAL"),
+                theme::overlay0().paint("•"),
+                theme::subtext0().paint("i"),
+                theme::overlay0().paint("insert")
+            ))
+        } else {
+            // show quit hint in insert mode
+            Cow::Owned(format!(
+                "{} {} {} {}",
+                theme::overlay0().paint("/help"),
+                theme::overlay0().paint("•"),
+                theme::overlay0().paint(":q"),
+                theme::overlay0().paint("quit")
+            ))
+        }
     }
 
     fn render_prompt_indicator(&self, edit_mode: PromptEditMode) -> Cow<str> {
         match edit_mode {
             PromptEditMode::Default | PromptEditMode::Emacs => {
+                self.vi_normal.set(false);
                 Cow::Owned(format!(" {} ", theme::teal().paint("❯")))
             }
             PromptEditMode::Vi(vi_mode) => match vi_mode {
                 PromptViMode::Insert => {
+                    self.vi_normal.set(false);
                     Cow::Owned(format!(" {} ", theme::teal().paint("❯")))
                 }
                 PromptViMode::Normal => {
+                    self.vi_normal.set(true);
                     Cow::Owned(format!(" {} ", theme::pink().paint("●")))
                 }
             },
             PromptEditMode::Custom(_) => {
+                self.vi_normal.set(false);
                 Cow::Owned(format!(" {} ", theme::peach().paint("▸")))
             }
         }

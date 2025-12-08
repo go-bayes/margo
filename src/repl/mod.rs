@@ -122,8 +122,8 @@ fn parse_input(line: &str) -> Input {
         return Input::Init(line.to_string());
     }
 
-    // quit without slash
-    if line == "quit" || line == "exit" || line == "q" {
+    // quit without slash (including vim-style :q)
+    if line == "quit" || line == "exit" || line == "q" || line == ":q" || line == ":q!" || line == ":wq" {
         return Input::Quit;
     }
 
