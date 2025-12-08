@@ -20,7 +20,10 @@ pub fn handle_slash(cmd: &str) -> Result<()> {
         "help" | "h" | "?" => cmd_help(),
         "config" => cmd_config(args),
         "templates" => cmd_templates(args),
+        "view" => cmd_view(args),
+        "save" => cmd_save(args),
         "vars" | "v" => cmd_vars(args),
+        "theme" | "t" => cmd_theme(args),
         "clear" => cmd_clear(),
         _ => {
             println!(
@@ -337,6 +340,9 @@ fn cmd_help() -> Result<()> {
     print_help_item("/templates open <name>", "open template in $EDITOR");
     print_help_item("/templates new <type> <name>", "create new template");
     print_help_item("/vars [pattern]", "fuzzy search variables");
+    print_help_item("/view [name]", "browse templates and their variables");
+    print_help_item("/save <type> <name>", "create new template from variable picker");
+    print_help_item("/theme [light|dark]", "toggle or set theme");
     print_help_item("/clear", "clear the screen");
     print_help_item("/quit, /q", "exit margo");
     println!();
@@ -711,52 +717,378 @@ vars = [
     .to_string()
 }
 
+fn cmd_view(args: &[&str]) -> Result<()> {
+    let name = args.first().copied();
+
+    match name {
+        // view specific template by name
+        Some(template_name) => view_template(template_name),
+        // interactive picker
+        None => view_template_picker(),
+    }
+}
+
+fn view_template(name: &str) -> Result<()> {
+    // try outcomes first, then baselines
+    let template = Config::load_outcomes(name).or_else(|| Config::load_baselines(name));
+
+    match template {
+        Some(t) => {
+            println!();
+            println!(
+                "  {} ({} variables)",
+                theme::sapphire().paint(name),
+                theme::text().paint(t.vars.len().to_string())
+            );
+            println!(
+                "  {}",
+                theme::overlay0().paint("─────────────────────────────────────────────")
+            );
+
+            for var in &t.vars {
+                println!(
+                    "    {} {}",
+                    theme::overlay0().paint("•"),
+                    theme::teal().paint(var.as_str())
+                );
+            }
+            println!();
+            Ok(())
+        }
+        None => {
+            println!();
+            println!(
+                "  {} template '{}' not found",
+                theme::yellow().paint("warning:"),
+                theme::sapphire().paint(name)
+            );
+            println!(
+                "  {} use /templates to list available templates",
+                theme::overlay0().paint("hint:")
+            );
+            println!();
+            Ok(())
+        }
+    }
+}
+
+fn view_template_picker() -> Result<()> {
+    // collect all templates with their variable counts
+    let outcomes = Config::list_outcomes();
+    let baselines = Config::list_baselines();
+
+    if outcomes.is_empty() && baselines.is_empty() {
+        println!();
+        println!(
+            "  {} no templates found",
+            theme::yellow().paint("warning:")
+        );
+        println!(
+            "  {} use /templates new <type> <name> to create one",
+            theme::overlay0().paint("hint:")
+        );
+        println!();
+        return Ok(());
+    }
+
+    // build list with type prefix and variable count
+    let mut items: Vec<String> = Vec::new();
+
+    for name in &outcomes {
+        if let Some(t) = Config::load_outcomes(name) {
+            items.push(format!("outcomes/{} ({} vars)", name, t.vars.len()));
+        }
+    }
+
+    for name in &baselines {
+        if let Some(t) = Config::load_baselines(name) {
+            items.push(format!("baselines/{} ({} vars)", name, t.vars.len()));
+        }
+    }
+
+    let selection = picker::browse_templates("Select template to view:", &items)?;
+
+    if let Some(selected) = selection {
+        // extract template name from "outcomes/name (N vars)" format
+        if let Some(name) = selected.split('/').nth(1) {
+            if let Some(name) = name.split_whitespace().next() {
+                view_template(name)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn cmd_save(args: &[&str]) -> Result<()> {
+    // usage: /save <type> <name>
+    // type: outcomes or baselines
+    // name: template name (alphanumeric + underscore)
+
+    if args.len() < 2 {
+        print_save_usage();
+        return Ok(());
+    }
+
+    let template_type = args[0];
+    let name = args[1];
+
+    // validate type
+    if template_type != "outcomes" && template_type != "baselines" {
+        println!();
+        println!(
+            "  {} invalid template type '{}'",
+            theme::yellow().paint("warning:"),
+            theme::text().paint(template_type)
+        );
+        println!(
+            "  {} use 'outcomes' or 'baselines'",
+            theme::overlay0().paint("hint:")
+        );
+        println!();
+        return Ok(());
+    }
+
+    // validate name (alphanumeric + underscore)
+    if !name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+        println!();
+        println!(
+            "  {} invalid template name '{}'",
+            theme::yellow().paint("warning:"),
+            theme::text().paint(name)
+        );
+        println!(
+            "  {} use only letters, numbers, and underscores",
+            theme::overlay0().paint("hint:")
+        );
+        println!();
+        return Ok(());
+    }
+
+    // check if template already exists
+    let existing = if template_type == "outcomes" {
+        Config::load_outcomes(name)
+    } else {
+        Config::load_baselines(name)
+    };
+
+    if existing.is_some() {
+        println!();
+        println!(
+            "  {} template '{}/{}' already exists",
+            theme::yellow().paint("warning:"),
+            theme::overlay0().paint(template_type),
+            theme::sapphire().paint(name)
+        );
+        println!(
+            "  {} use /templates edit {} to modify it",
+            theme::overlay0().paint("hint:"),
+            name
+        );
+        println!();
+        return Ok(());
+    }
+
+    // open variable picker for selection
+    let prompt = format!("Select variables for '{}':", name);
+    let selection = picker::pick_outcomes_for_save(&prompt)?;
+
+    match selection {
+        Some(vars) if !vars.is_empty() => {
+            // build template content
+            let content = format_template_toml(&vars);
+
+            // determine path
+            let dir = if template_type == "outcomes" {
+                Config::outcomes_dir()
+            } else {
+                Config::baselines_dir()
+            };
+
+            // ensure directory exists
+            if let Err(e) = fs::create_dir_all(&dir) {
+                println!();
+                println!(
+                    "  {} failed to create directory: {}",
+                    theme::red().paint("error:"),
+                    e
+                );
+                println!();
+                return Ok(());
+            }
+
+            // write template
+            let path = dir.join(format!("{}.toml", name));
+            if let Err(e) = fs::write(&path, content) {
+                println!();
+                println!(
+                    "  {} failed to write template: {}",
+                    theme::red().paint("error:"),
+                    e
+                );
+                println!();
+                return Ok(());
+            }
+
+            println!();
+            println!(
+                "  {} saved {} variables to {}/{}.toml",
+                theme::green().paint("✓"),
+                theme::text().paint(vars.len().to_string()),
+                theme::overlay0().paint(template_type),
+                theme::sapphire().paint(name)
+            );
+            println!();
+        }
+        _ => {
+            println!();
+            println!(
+                "  {} no variables selected, template not created",
+                theme::yellow().paint("cancelled:")
+            );
+            println!();
+        }
+    }
+
+    Ok(())
+}
+
+fn print_save_usage() {
+    println!();
+    println!(
+        "  {} /save <type> <name>",
+        theme::peach().paint("Usage:")
+    );
+    println!();
+    println!(
+        "  {} template type ('outcomes' or 'baselines')",
+        theme::overlay0().paint("<type>")
+    );
+    println!(
+        "  {} template name (letters, numbers, underscores)",
+        theme::overlay0().paint("<name>")
+    );
+    println!();
+    println!(
+        "  {} /save outcomes wellbeing",
+        theme::subtext0().paint("Example:")
+    );
+    println!(
+        "           /save baselines minimal",
+        );
+    println!();
+}
+
+fn format_template_toml(vars: &[String]) -> String {
+    let mut content = String::from("# template created with /save\n\nvars = [\n");
+    for var in vars {
+        content.push_str(&format!("  \"{}\",\n", var));
+    }
+    content.push_str("]\n");
+    content
+}
+
 fn cmd_vars(args: &[&str]) -> Result<()> {
     let pattern = args.first().copied().unwrap_or("");
 
     let matches = fuzzy::search_variables(pattern);
 
-    println!();
-    if pattern.is_empty() {
+    if matches.is_empty() {
+        println!();
         println!(
-            "  {} {} variables available",
-            theme::peach().paint("Variables:"),
-            theme::text().paint(matches.len().to_string())
+            "  {} no variables matching '{}'",
+            theme::yellow().paint("warning:"),
+            theme::sapphire().paint(pattern)
         );
-        println!(
-            "  {}",
-            theme::subtext0().paint("use /vars <pattern> to search")
-        );
+        println!();
+        return Ok(());
+    }
+
+    // use interactive picker for browsing
+    let prompt = if pattern.is_empty() {
+        format!("Browse variables ({} total):", matches.len())
     } else {
-        println!(
-            "  {} for '{}' ({} matches)",
-            theme::peach().paint("Variables"),
-            theme::sapphire().paint(pattern),
-            theme::text().paint(matches.len().to_string())
-        );
-    }
-    println!(
-        "  {}",
-        theme::overlay0().paint("─────────────────────────────────────────────")
-    );
+        format!("Variables matching '{}' ({} matches):", pattern, matches.len())
+    };
 
-    let limit = if pattern.is_empty() { 20 } else { 30 };
-    for var in matches.iter().take(limit) {
-        println!(
-            "    {} {}",
-            theme::overlay0().paint("•"),
-            theme::teal().paint(*var)
-        );
-    }
+    let _ = picker::browse_variables(&prompt, &matches)?;
 
-    if matches.len() > limit {
-        println!(
-            "    {} {} more...",
-            theme::overlay0().paint("..."),
-            theme::subtext0().paint((matches.len() - limit).to_string())
-        );
+    Ok(())
+}
+
+fn cmd_theme(args: &[&str]) -> Result<()> {
+    let subcommand = args.first().copied().unwrap_or("");
+
+    match subcommand {
+        // toggle between light and dark
+        "" | "toggle" => {
+            theme::toggle_theme();
+            let current = theme::current_theme();
+            println!();
+            println!(
+                "  {} switched to {} theme",
+                theme::green().paint("✓"),
+                theme::sapphire().paint(current)
+            );
+            println!();
+        }
+        // set specific theme
+        "light" | "latte" => {
+            theme::set_theme("light");
+            println!();
+            println!(
+                "  {} switched to {} theme",
+                theme::green().paint("✓"),
+                theme::sapphire().paint("light")
+            );
+            println!();
+        }
+        "dark" | "mocha" => {
+            theme::set_theme("dark");
+            println!();
+            println!(
+                "  {} switched to {} theme",
+                theme::green().paint("✓"),
+                theme::sapphire().paint("dark")
+            );
+            println!();
+        }
+        // show current theme
+        "show" | "current" => {
+            let current = theme::current_theme();
+            println!();
+            println!(
+                "  {} {}",
+                theme::peach().paint("Theme:"),
+                theme::sapphire().paint(current)
+            );
+            println!();
+        }
+        _ => {
+            println!();
+            println!(
+                "  {} /theme [toggle|light|dark|show]",
+                theme::peach().paint("Usage:")
+            );
+            println!(
+                "    {}  toggle between light and dark",
+                theme::overlay0().paint("toggle")
+            );
+            println!(
+                "    {}   catppuccin latte (light)",
+                theme::overlay0().paint("light")
+            );
+            println!(
+                "    {}    catppuccin mocha (dark)",
+                theme::overlay0().paint("dark")
+            );
+            println!(
+                "    {}    show current theme",
+                theme::overlay0().paint("show")
+            );
+            println!();
+        }
     }
-    println!();
 
     Ok(())
 }

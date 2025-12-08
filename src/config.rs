@@ -23,6 +23,7 @@ pub struct Config {
 /// a template (baselines or outcomes)
 #[derive(Debug, Clone, Default)]
 pub struct Template {
+    #[allow(dead_code)]
     pub name: String,
     pub vars: Vec<String>,
 }

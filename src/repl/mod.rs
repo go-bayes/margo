@@ -10,7 +10,10 @@ mod prompt;
 mod welcome;
 
 use anyhow::Result;
-use reedline::{FileBackedHistory, Reedline, Signal, Vi};
+use reedline::{
+    default_vi_insert_keybindings, default_vi_normal_keybindings, ColumnarMenu, FileBackedHistory,
+    KeyCode, KeyModifiers, MenuBuilder, Reedline, ReedlineEvent, ReedlineMenu, Signal, Vi,
+};
 use std::path::PathBuf;
 
 use crate::config::Config;
@@ -83,12 +86,34 @@ fn create_editor() -> Result<Reedline> {
     let highlighter = Box::new(MargoHighlighter::new());
     let hinter = Box::new(MargoHinter::new());
 
+    // completion menu for tab
+    let completion_menu = Box::new(
+        ColumnarMenu::default()
+            .with_name("completion_menu")
+            .with_columns(1)
+            .with_column_padding(2),
+    );
+
+    // keybindings for insert mode with tab completion
+    let mut insert_keybindings = default_vi_insert_keybindings();
+    insert_keybindings.add_binding(
+        KeyModifiers::NONE,
+        KeyCode::Tab,
+        ReedlineEvent::UntilFound(vec![
+            ReedlineEvent::Menu("completion_menu".to_string()),
+            ReedlineEvent::MenuNext,
+        ]),
+    );
+
+    let vi = Vi::new(insert_keybindings, default_vi_normal_keybindings());
+
     let editor = Reedline::create()
         .with_history(history)
         .with_completer(completer)
         .with_highlighter(highlighter)
         .with_hinter(hinter)
-        .with_edit_mode(Box::new(Vi::default()));
+        .with_menu(ReedlineMenu::EngineCompleter(completion_menu))
+        .with_edit_mode(Box::new(vi));
 
     Ok(editor)
 }

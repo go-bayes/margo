@@ -41,12 +41,12 @@ impl Highlighter for MargoHighlighter {
 
         // quit/exit
         if line == "quit" || line == "exit" || line == "q" {
-            styled.push((Style::new().fg(theme::SAPPHIRE), line.to_string()));
+            styled.push((Style::new().fg(theme::color_sapphire()), line.to_string()));
             return styled;
         }
 
         // default: plain text
-        styled.push((Style::new().fg(theme::TEXT), line.to_string()));
+        styled.push((Style::new().fg(theme::color_text()), line.to_string()));
         styled
     }
 }
@@ -57,12 +57,12 @@ fn highlight_slash_command(line: &str, styled: &mut StyledText) {
     let rest = parts.get(1).copied().unwrap_or("");
 
     // command in sapphire
-    styled.push((Style::new().fg(theme::SAPPHIRE), cmd.to_string()));
+    styled.push((Style::new().fg(theme::color_sapphire()), cmd.to_string()));
 
     if !rest.is_empty() {
-        styled.push((Style::new().fg(theme::TEXT), " ".to_string()));
+        styled.push((Style::new().fg(theme::color_text()), " ".to_string()));
         // subcommands/args in teal
-        styled.push((Style::new().fg(theme::TEAL), rest.to_string()));
+        styled.push((Style::new().fg(theme::color_teal()), rest.to_string()));
     }
 }
 
@@ -72,7 +72,7 @@ fn highlight_init_command(line: &str, styled: &mut StyledText) {
     let mut after_flag = false;
 
     // "init" keyword
-    styled.push((Style::new().fg(theme::MAUVE), "init".to_string()));
+    styled.push((Style::new().fg(theme::color_mauve()), "init".to_string()));
 
     // skip "init"
     for _ in 0..4 {
@@ -81,7 +81,7 @@ fn highlight_init_command(line: &str, styled: &mut StyledText) {
 
     // space after init
     if chars.peek() == Some(&' ') {
-        styled.push((Style::new().fg(theme::TEXT), " ".to_string()));
+        styled.push((Style::new().fg(theme::color_text()), " ".to_string()));
         chars.next();
     }
 
@@ -91,26 +91,26 @@ fn highlight_init_command(line: &str, styled: &mut StyledText) {
 
     for (i, part) in parts.iter().enumerate() {
         if i > 0 {
-            styled.push((Style::new().fg(theme::TEXT), " ".to_string()));
+            styled.push((Style::new().fg(theme::color_text()), " ".to_string()));
         }
 
         if part.starts_with('-') {
             // flag in peach
-            styled.push((Style::new().fg(theme::PEACH), part.to_string()));
+            styled.push((Style::new().fg(theme::color_peach()), part.to_string()));
             in_flag = true;
             after_flag = false;
         } else if in_flag && !after_flag {
             // value after flag in yellow
-            styled.push((Style::new().fg(theme::YELLOW), part.to_string()));
+            styled.push((Style::new().fg(theme::color_yellow()), part.to_string()));
             after_flag = true;
         } else if i == 0 {
             // template type (grf, grf-event) in mauve
-            styled.push((Style::new().fg(theme::MAUVE), part.to_string()));
+            styled.push((Style::new().fg(theme::color_mauve()), part.to_string()));
             in_flag = false;
             after_flag = false;
         } else {
             // variables in teal
-            styled.push((Style::new().fg(theme::TEAL), part.to_string()));
+            styled.push((Style::new().fg(theme::color_teal()), part.to_string()));
             in_flag = false;
             after_flag = false;
         }

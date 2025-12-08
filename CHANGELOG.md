@@ -5,6 +5,23 @@ Notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2025-12-09
+
+### Added
+- `/theme` command for light/dark theme toggle
+  - Catppuccin Latte (light) and Mocha (dark) palettes
+  - `/theme toggle`, `/theme light`, `/theme dark`, `/theme show`
+- `/view` command to browse templates with variable preview
+  - `/view` opens interactive picker
+  - `/view <name>` shows template variables
+- `/save <type> <name>` command to create templates on-the-fly
+  - Opens variable picker, saves selection to config directory
+  - Validates template type and name format
+
+### Fixed
+- Tab autocomplete now displays completion menu (added `ColumnarMenu`)
+- `/vars` now scrollable through all 530 variables (was truncated to 20)
+
 ## [0.3.0] - 2025-12-09
 
 ### Added

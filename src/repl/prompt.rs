@@ -27,11 +27,11 @@ impl Default for MargoPrompt {
 }
 
 impl Prompt for MargoPrompt {
-    fn render_prompt_left(&self) -> Cow<str> {
+    fn render_prompt_left(&self) -> Cow<'_, str> {
         Cow::Owned(format!("{}", theme::pink().paint("margo")))
     }
 
-    fn render_prompt_right(&self) -> Cow<str> {
+    fn render_prompt_right(&self) -> Cow<'_, str> {
         if self.vi_normal.get() {
             // show hint in normal mode
             Cow::Owned(format!(
@@ -53,7 +53,7 @@ impl Prompt for MargoPrompt {
         }
     }
 
-    fn render_prompt_indicator(&self, edit_mode: PromptEditMode) -> Cow<str> {
+    fn render_prompt_indicator(&self, edit_mode: PromptEditMode) -> Cow<'_, str> {
         match edit_mode {
             PromptEditMode::Default | PromptEditMode::Emacs => {
                 self.vi_normal.set(false);
@@ -76,14 +76,14 @@ impl Prompt for MargoPrompt {
         }
     }
 
-    fn render_prompt_multiline_indicator(&self) -> Cow<str> {
+    fn render_prompt_multiline_indicator(&self) -> Cow<'_, str> {
         Cow::Owned(format!("{} ", theme::overlay0().paint("...")))
     }
 
     fn render_prompt_history_search_indicator(
         &self,
         history_search: PromptHistorySearch,
-    ) -> Cow<str> {
+    ) -> Cow<'_, str> {
         let prefix = match history_search.status {
             PromptHistorySearchStatus::Passing => "",
             PromptHistorySearchStatus::Failing => "failing ",
@@ -91,8 +91,8 @@ impl Prompt for MargoPrompt {
 
         Cow::Owned(format!(
             "({}reverse-search: {}) ",
-            Style::new().fg(theme::OVERLAY0).paint(prefix),
-            Style::new().fg(theme::SAPPHIRE).paint(&history_search.term),
+            Style::new().fg(theme::color_overlay0()).paint(prefix),
+            Style::new().fg(theme::color_sapphire()).paint(&history_search.term),
         ))
     }
 }

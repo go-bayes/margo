@@ -129,11 +129,13 @@ pub fn grf_from_config(
 }
 
 /// initialise a new GRF project (quiet mode for TUI)
+#[allow(dead_code)]
 pub fn grf_quiet(name: &str) -> Result<()> {
     grf_full(name, None, true)
 }
 
 /// full grf init with all options
+#[allow(dead_code)]
 fn grf_full(name: &str, from_path: Option<&str>, quiet: bool) -> Result<()> {
     let project_path = Path::new(name);
 
@@ -218,6 +220,7 @@ fn grf_full(name: &str, from_path: Option<&str>, quiet: bool) -> Result<()> {
 }
 
 /// extract project name from existing study.toml (first line comment)
+#[allow(dead_code)]
 fn extract_old_project_name(content: &str) -> String {
     // look for "# project-name - GRF study configuration" pattern
     if let Some(first_line) = content.lines().next() {

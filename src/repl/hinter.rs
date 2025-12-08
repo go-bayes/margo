@@ -69,7 +69,7 @@ impl Hinter for MargoHinter {
             if line == *prefix {
                 return format!(
                     "{}",
-                    Style::new().fg(theme::OVERLAY0).paint(*suffix)
+                    Style::new().fg(theme::color_overlay0()).paint(*suffix)
                 );
             }
         }

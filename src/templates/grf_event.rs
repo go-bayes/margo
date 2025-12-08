@@ -5,6 +5,7 @@
 ///
 /// returns a vector of (filename, content) tuples
 
+#[allow(dead_code)]
 pub fn get_template_files(project_name: &str) -> Vec<(String, String)> {
     vec![
         ("study.toml".to_string(), study_toml(project_name)),
@@ -184,6 +185,7 @@ fn format_string_array(vars: &[String]) -> String {
     format!("[{}]", items.join(", "))
 }
 
+#[allow(dead_code)]
 fn study_toml(project_name: &str) -> String {
     format!(
         r####"# {project_name} - GRF Event Study configuration

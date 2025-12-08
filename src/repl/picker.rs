@@ -174,3 +174,43 @@ pub fn edit_template(name: &str, current_vars: &[String]) -> Result<Option<Vec<S
 
     Ok(result.map(|v| v.into_iter().map(|s| s.to_string()).collect()))
 }
+
+/// browse variables interactively (view-only, scrollable)
+pub fn browse_variables(prompt: &str, variables: &[&str]) -> Result<Option<String>> {
+    let result = Select::new(prompt, variables.to_vec())
+        .with_vim_mode(true)
+        .with_page_size(20)
+        .with_help_message("j/k or ↑↓ scroll, type to filter, Enter select, Esc cancel")
+        .with_render_config(catppuccin_config())
+        .prompt_skippable()?;
+
+    Ok(result.map(|s| s.to_string()))
+}
+
+/// browse templates interactively
+pub fn browse_templates(prompt: &str, templates: &[String]) -> Result<Option<String>> {
+    let items: Vec<&str> = templates.iter().map(String::as_str).collect();
+
+    let result = Select::new(prompt, items)
+        .with_vim_mode(true)
+        .with_page_size(15)
+        .with_help_message("j/k or ↑↓ scroll, Enter select, Esc cancel")
+        .with_render_config(catppuccin_config())
+        .prompt_skippable()?;
+
+    Ok(result.map(|s| s.to_string()))
+}
+
+/// pick variables for saving a new template
+pub fn pick_outcomes_for_save(prompt: &str) -> Result<Option<Vec<String>>> {
+    let variables: Vec<&str> = VARIABLES.iter().copied().collect();
+
+    let result = MultiSelect::new(prompt, variables)
+        .with_vim_mode(true)
+        .with_page_size(20)
+        .with_help_message("j/k or ↑↓ scroll, Space select, Enter confirm, Esc cancel")
+        .with_render_config(catppuccin_config())
+        .prompt_skippable()?;
+
+    Ok(result.map(|v| v.into_iter().map(|s| s.to_string()).collect()))
+}
