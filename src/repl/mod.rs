@@ -24,6 +24,9 @@ use prompt::MargoPrompt;
 
 /// run the interactive REPL
 pub fn run() -> Result<()> {
+    // clear screen and move cursor to top (full terminal takeover)
+    print!("\x1B[2J\x1B[1;1H");
+
     welcome::print_welcome();
 
     let mut editor = create_editor()?;
