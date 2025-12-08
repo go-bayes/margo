@@ -39,6 +39,13 @@ fn catppuccin_config() -> RenderConfig<'static> {
         b: 244,
     };
 
+    // subtle background for highlighted row
+    let surface0 = Color::Rgb {
+        r: 49,
+        g: 50,
+        b: 68,
+    };
+
     RenderConfig {
         prompt_prefix: Styled::new("?").with_fg(pink),
         answered_prompt_prefix: Styled::new("✓").with_fg(teal),
@@ -50,7 +57,7 @@ fn catppuccin_config() -> RenderConfig<'static> {
         answer: StyleSheet::new().with_fg(teal),
         canceled_prompt_indicator: Styled::new("✗").with_fg(peach),
         highlighted_option_prefix: Styled::new("❯").with_fg(pink),
-        selected_option: Some(StyleSheet::new().with_fg(teal)),
+        selected_option: Some(StyleSheet::new().with_fg(teal).with_bg(surface0)),
         scroll_up_prefix: Styled::new("▲").with_fg(overlay0),
         scroll_down_prefix: Styled::new("▼").with_fg(overlay0),
         option: StyleSheet::new().with_fg(text),
