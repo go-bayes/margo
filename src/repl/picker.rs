@@ -69,11 +69,11 @@ fn catppuccin_config() -> RenderConfig<'static> {
 }
 
 /// pick a single variable (for exposure)
+/// note: vim mode disabled so j/k can be typed for filtering
 pub fn pick_exposure() -> Result<Option<String>> {
     let variables: Vec<&str> = VARIABLES.iter().copied().collect();
 
     let result = Select::new("Select exposure variable:", variables)
-        .with_vim_mode(true)
         .with_page_size(15)
         .with_help_message("↑↓ navigate, type to filter, Enter select, Esc cancel")
         .with_render_config(catppuccin_config())
@@ -83,11 +83,11 @@ pub fn pick_exposure() -> Result<Option<String>> {
 }
 
 /// pick multiple variables (for outcomes)
+/// note: vim mode disabled so j/k can be typed for filtering
 pub fn pick_outcomes() -> Result<Option<Vec<String>>> {
     let variables: Vec<&str> = VARIABLES.iter().copied().collect();
 
     let result = MultiSelect::new("Select outcome variables:", variables)
-        .with_vim_mode(true)
         .with_page_size(15)
         .with_help_message("↑↓ navigate, Space select, Enter confirm, Esc cancel")
         .with_render_config(catppuccin_config())
@@ -97,11 +97,11 @@ pub fn pick_outcomes() -> Result<Option<Vec<String>>> {
 }
 
 /// pick a single variable with custom prompt
+/// note: vim mode disabled so j/k can be typed for filtering
 pub fn pick_variable(prompt: &str) -> Result<Option<String>> {
     let variables: Vec<&str> = VARIABLES.iter().copied().collect();
 
     let result = Select::new(prompt, variables)
-        .with_vim_mode(true)
         .with_page_size(15)
         .with_help_message("↑↓ navigate, type to filter, Enter select, Esc cancel")
         .with_render_config(catppuccin_config())
@@ -176,11 +176,11 @@ pub fn edit_template(name: &str, current_vars: &[String]) -> Result<Option<Vec<S
 }
 
 /// browse variables interactively (view-only, scrollable)
+/// note: vim mode disabled so j/k can be typed for filtering (e.g. "kessler", "job")
 pub fn browse_variables(prompt: &str, variables: &[&str]) -> Result<Option<String>> {
     let result = Select::new(prompt, variables.to_vec())
-        .with_vim_mode(true)
         .with_page_size(20)
-        .with_help_message("j/k or ↑↓ scroll, type to filter, Enter select, Esc cancel")
+        .with_help_message("↑↓ scroll, type to filter, Enter select, Esc cancel")
         .with_render_config(catppuccin_config())
         .prompt_skippable()?;
 
@@ -202,13 +202,13 @@ pub fn browse_templates(prompt: &str, templates: &[String]) -> Result<Option<Str
 }
 
 /// pick variables for saving a new template
+/// note: vim mode disabled so j/k can be typed for filtering
 pub fn pick_outcomes_for_save(prompt: &str) -> Result<Option<Vec<String>>> {
     let variables: Vec<&str> = VARIABLES.iter().copied().collect();
 
     let result = MultiSelect::new(prompt, variables)
-        .with_vim_mode(true)
         .with_page_size(20)
-        .with_help_message("j/k or ↑↓ scroll, Space select, Enter confirm, Esc cancel")
+        .with_help_message("↑↓ scroll, Space select, Enter confirm, Esc cancel")
         .with_render_config(catppuccin_config())
         .prompt_skippable()?;
 
