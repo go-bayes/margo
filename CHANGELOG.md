@@ -5,6 +5,35 @@ Notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-12-09
+
+### Added
+- Interactive REPL mode (run `margo` with no arguments)
+  - Vi mode with visual indicator (pink ● normal, teal ❯ insert)
+  - Persistent command history (`~/.config/margo/history`)
+  - Catppuccin Mocha colour palette with pink branding
+- Slash commands: `/help`, `/config`, `/templates`, `/vars`, `/clear`
+- Fuzzy variable picker for init commands
+  - 530 bundled NZAVS variable names with fuzzy search
+  - Guided flow: model → baseline → exposure → outcomes
+- Tab completion for commands, variables, and templates
+- Syntax highlighting in REPL input
+- Configurable theme support (`[theme]` section in config.toml)
+  - `catppuccin` (default) — full RGB colour palette
+  - `basic` — 16-colour ANSI fallback for limited terminals
+  - `plain` — no colours
+
+### Changed
+- Default entry point is now REPL (previously required subcommand)
+- `[editor]` section in config.toml for configurable editor
+
+### Removed
+- TUI mode (`margo new`) - replaced by REPL
+- `ratatui` and `colored` dependencies
+
+### Notes
+- TUI code preserved in `storage/tui/` for reference
+
 ## [0.2.1] - 2025-12-07
 
 ### Added

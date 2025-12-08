@@ -14,6 +14,10 @@ pub struct Config {
     // defaults
     pub baselines: Option<String>,   // default baseline template name
     pub who_mode: Option<String>,    // "default", "cat", or "num"
+    // editor
+    pub editor: Option<String>,      // editor for /config edit, /templates edit
+    // theme
+    pub theme: Option<String>,       // "catppuccin" (default), "basic", or "plain"
 }
 
 /// a template (baselines or outcomes)
@@ -82,6 +86,8 @@ impl Config {
                     "push_mods" => config.push_mods = Some(value.to_string()),
                     "baselines" => config.baselines = Some(value.to_string()),
                     "who_mode" => config.who_mode = Some(value.to_string()),
+                    "editor" | "command" => config.editor = Some(value.to_string()),
+                    "theme" => config.theme = Some(value.to_string()),
                     _ => {}
                 }
             }
@@ -109,6 +115,16 @@ impl Config {
 
 # BMI/exercise variable mode: "default", "cat", or "num"
 # who_mode = "default"
+
+[editor]
+# editor for /config edit, /templates edit
+# uses $EDITOR if set, otherwise falls back to nvim
+# command = "$EDITOR"
+
+[theme]
+# colour theme: "catppuccin" (default), "basic" (16 colours), "plain" (no colours)
+# use "basic" or "plain" if colours don't display correctly in your terminal
+# theme = "catppuccin"
 "#.to_string()
     }
 

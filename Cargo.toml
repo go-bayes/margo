@@ -1,7 +1,7 @@
 [package]
 name = "margo"
-version = "0.2.0"
-edition = "2025"
+version = "0.3.0"
+edition = "2024"
 authors = ["Joseph Bulbulia"]
 description = "CLI tool for scaffolding margot causal inference projects"
 license = "MIT"
@@ -20,12 +20,21 @@ clap = { version = "4", features = ["derive"] }
 # error handling
 anyhow = "1"
 
-# coloured terminal output
-colored = "3"
+# REPL line editor with vi mode
+reedline = "0.38"
 
-# TUI
-ratatui = "0.29"
+# terminal colours (catppuccin mocha)
+nu-ansi-term = "0.50"
+
+# terminal control
 crossterm = "0.28"
+
+# fuzzy matching
+nucleo = "0.5"
+nucleo-matcher = "0.3"
+
+# interactive prompts/pickers
+inquire = "0.7"
 
 # config paths
 dirs = "6"

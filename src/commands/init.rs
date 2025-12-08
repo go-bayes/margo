@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use colored::Colorize;
+use nu_ansi_term::Color;
 use std::fs;
 use std::path::Path;
 
@@ -23,14 +23,14 @@ pub fn grf_from_config(
     let pull_data = config.pull_data.ok_or_else(|| {
         anyhow::anyhow!(
             "pull_data not configured. run: {} and set paths",
-            "margo config".cyan()
+            Color::Cyan.paint("margo config")
         )
     })?;
 
     let push_mods_base = config.push_mods.ok_or_else(|| {
         anyhow::anyhow!(
             "push_mods not configured. run: {} and set paths",
-            "margo config".cyan()
+            Color::Cyan.paint("margo config")
         )
     })?;
 
@@ -50,7 +50,7 @@ pub fn grf_from_config(
             } else {
                 println!(
                     "{} outcome template '{}' not found, skipping",
-                    "warning:".yellow().bold(),
+                    Color::Yellow.bold().paint("warning:"),
                     name
                 );
             }
@@ -80,7 +80,7 @@ pub fn grf_from_config(
         .unwrap_or_else(|| {
             println!(
                 "{} baseline template '{}' not found, using empty",
-                "warning:".yellow().bold(),
+                Color::Yellow.bold().paint("warning:"),
                 baselines_name
             );
             Vec::new()
@@ -93,8 +93,8 @@ pub fn grf_from_config(
 
     println!(
         "{} GRF project '{}'",
-        "Creating".green().bold(),
-        project_name.cyan()
+        Color::Green.bold().paint("Creating"),
+        Color::Cyan.paint(&project_name)
     );
 
     // write scripts to current directory
@@ -111,17 +111,17 @@ pub fn grf_from_config(
     for (filename, content) in files {
         fs::write(&filename, content)
             .with_context(|| format!("failed to write '{}'", filename))?;
-        println!("  {} {}", "wrote".green(), filename);
+        println!("  {} {}", Color::Green.paint("wrote"), filename);
     }
 
     println!();
-    println!("{}", "Project created successfully!".green().bold());
+    println!("{}", Color::Green.bold().paint("Project created successfully!"));
     println!();
     println!("Scripts created in current directory");
-    println!("Outputs will be written to: {}", push_mods_path.cyan());
+    println!("Outputs will be written to: {}", Color::Cyan.paint(&push_mods_path));
     println!();
     println!("Next steps:");
-    println!("  1. Review {} and adjust as needed", "study.toml".cyan());
+    println!("  1. Review {} and adjust as needed", Color::Cyan.paint("study.toml"));
     println!("  2. Run scripts in order: 01, 02, 03...");
     println!();
 
@@ -154,9 +154,9 @@ fn grf_full(name: &str, from_path: Option<&str>, quiet: bool) -> Result<()> {
         if !quiet {
             println!(
                 "{} GRF project '{}' from '{}'",
-                "Creating".green().bold(),
-                name.cyan(),
-                path.cyan()
+                Color::Green.bold().paint("Creating"),
+                Color::Cyan.paint(name),
+                Color::Cyan.paint(path)
             );
         }
         Some(fs::read_to_string(from).with_context(|| format!("failed to read '{}'", path))?)
@@ -164,8 +164,8 @@ fn grf_full(name: &str, from_path: Option<&str>, quiet: bool) -> Result<()> {
         if !quiet {
             println!(
                 "{} GRF project '{}'",
-                "Creating".green().bold(),
-                name.cyan()
+                Color::Green.bold().paint("Creating"),
+                Color::Cyan.paint(name)
             );
         }
         None
@@ -199,17 +199,17 @@ fn grf_full(name: &str, from_path: Option<&str>, quiet: bool) -> Result<()> {
         fs::write(&file_path, final_content)
             .with_context(|| format!("failed to write '{}'", filename))?;
         if !quiet {
-            println!("  {} {}", "wrote".green(), filename);
+            println!("  {} {}", Color::Green.paint("wrote"), filename);
         }
     }
 
     if !quiet {
         println!();
-        println!("{}", "Project created successfully!".green().bold());
+        println!("{}", Color::Green.bold().paint("Project created successfully!"));
         println!();
         println!("Next steps:");
-        println!("  1. cd {}", name.cyan());
-        println!("  2. Edit {} with your study configuration", "study.toml".cyan());
+        println!("  1. cd {}", Color::Cyan.paint(name));
+        println!("  2. Edit {} with your study configuration", Color::Cyan.paint("study.toml"));
         println!("  3. Run scripts in order: 01, 02, 03...");
         println!();
     }
@@ -248,14 +248,14 @@ pub fn grf_event_from_config(
     let pull_data = config.pull_data.ok_or_else(|| {
         anyhow::anyhow!(
             "pull_data not configured. run: {} and set paths",
-            "margo config".cyan()
+            Color::Cyan.paint("margo config")
         )
     })?;
 
     let push_mods_base = config.push_mods.ok_or_else(|| {
         anyhow::anyhow!(
             "push_mods not configured. run: {} and set paths",
-            "margo config".cyan()
+            Color::Cyan.paint("margo config")
         )
     })?;
 
@@ -282,7 +282,7 @@ pub fn grf_event_from_config(
         .unwrap_or_else(|| {
             println!(
                 "{} baseline template '{}' not found, using empty baseline",
-                "note:".cyan().bold(),
+                Color::Cyan.bold().paint("note:"),
                 baselines_name
             );
             println!("  edit study.toml to add baseline variables");
@@ -296,14 +296,14 @@ pub fn grf_event_from_config(
 
     println!(
         "{} GRF Event Study project '{}'",
-        "Creating".green().bold(),
-        project_name.cyan()
+        Color::Green.bold().paint("Creating"),
+        Color::Cyan.paint(&project_name)
     );
     println!(
         "  exposure: {} | outcome: {} | waves: {}",
-        exposure.cyan(),
-        outcome_var.cyan(),
-        format!("{} waves", outcome_waves.len()).cyan()
+        Color::Cyan.paint(exposure),
+        Color::Cyan.paint(outcome_var),
+        Color::Cyan.paint(format!("{} waves", outcome_waves.len()))
     );
 
     // write scripts to current directory
@@ -321,17 +321,17 @@ pub fn grf_event_from_config(
     for (filename, content) in files {
         fs::write(&filename, content)
             .with_context(|| format!("failed to write '{}'", filename))?;
-        println!("  {} {}", "wrote".green(), filename);
+        println!("  {} {}", Color::Green.paint("wrote"), filename);
     }
 
     println!();
-    println!("{}", "Project created successfully!".green().bold());
+    println!("{}", Color::Green.bold().paint("Project created successfully!"));
     println!();
     println!("Scripts created in current directory");
-    println!("Outputs will be written to: {}", push_mods_path.cyan());
+    println!("Outputs will be written to: {}", Color::Cyan.paint(&push_mods_path));
     println!();
     println!("Next steps:");
-    println!("  1. Review {} and adjust wave definitions", "study.toml".cyan());
+    println!("  1. Review {} and adjust wave definitions", Color::Cyan.paint("study.toml"));
     println!("  2. Run scripts in order: 01, 02, 03...");
     println!();
 

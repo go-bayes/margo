@@ -1,12 +1,14 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use colored::Colorize;
+use nu_ansi_term::Color;
 use std::fs;
 
 mod commands;
 mod config;
+mod data;
+mod repl;
 mod templates;
-mod tui;
+mod theme;
 
 #[derive(Parser)]
 #[command(name = "margo")]
@@ -14,7 +16,7 @@ mod tui;
 #[command(about = "Scaffold margot causal inference projects", long_about = None)]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -24,8 +26,6 @@ enum Commands {
         #[command(subcommand)]
         template: InitTemplate,
     },
-    /// Launch interactive TUI for project creation
-    New,
     /// Manage user configuration (~/.config/margo/config.toml)
     Config {
         #[command(subcommand)]
@@ -103,21 +103,49 @@ enum InitTemplate {
 }
 
 fn main() -> Result<()> {
+    // load config and initialise theme
+    let cfg = config::Config::load();
+    if let Some(theme_name) = &cfg.theme {
+        theme::set_theme(theme_name);
+    }
+
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Init { template } => match template {
-            InitTemplate::Grf { exposure, outcomes, templates, baselines, name, who_mode } => {
+        // no subcommand → launch REPL
+        None => {
+            repl::run()?;
+        }
+        Some(Commands::Init { template }) => match template {
+            InitTemplate::Grf {
+                exposure,
+                outcomes,
+                templates,
+                baselines,
+                name,
+                who_mode,
+            } => {
                 commands::init::grf_from_config(
                     &exposure,
-                    if outcomes.is_empty() { None } else { Some(&outcomes) },
+                    if outcomes.is_empty() {
+                        None
+                    } else {
+                        Some(&outcomes)
+                    },
                     templates.as_deref(),
                     &baselines,
                     name.as_deref(),
                     &who_mode,
                 )?;
             }
-            InitTemplate::GrfEvent { exposure, outcome, waves, reference, baselines, name } => {
+            InitTemplate::GrfEvent {
+                exposure,
+                outcome,
+                waves,
+                reference,
+                baselines,
+                name,
+            } => {
                 commands::init::grf_event_from_config(
                     &exposure,
                     outcome.as_deref(),
@@ -130,16 +158,16 @@ fn main() -> Result<()> {
             InitTemplate::Lmtp { exposure: _ } => {
                 println!(
                     "{} LMTP template not yet implemented",
-                    "warning:".yellow().bold()
+                    Color::Yellow.bold().paint("warning:")
                 );
-                println!("  use {} for now", "margo init grf".cyan());
+                println!(
+                    "  use {} for now",
+                    Color::Cyan.paint("margo init grf")
+                );
                 std::process::exit(1);
             }
         },
-        Commands::New => {
-            tui::run()?;
-        }
-        Commands::Config { action } => {
+        Some(Commands::Config { action }) => {
             let config_path = config::Defaults::config_path();
             let config_dir = config::Defaults::config_dir();
 
@@ -149,21 +177,24 @@ fn main() -> Result<()> {
                     if config_path.exists() {
                         println!(
                             "{} config already exists at: {}",
-                            "note:".cyan().bold(),
+                            Color::Cyan.bold().paint("note:"),
                             config_path.display()
                         );
-                        println!("  edit with: {}", "margo config edit".cyan());
+                        println!(
+                            "  edit with: {}",
+                            Color::Cyan.paint("margo config edit")
+                        );
                     } else {
                         fs::create_dir_all(&config_dir)?;
                         fs::write(&config_path, config::Defaults::default_config_content())?;
                         println!(
                             "{} config file at: {}",
-                            "Created".green().bold(),
+                            Color::Green.bold().paint("Created"),
                             config_path.display()
                         );
                         println!();
                         println!("Edit this file to set your default paths:");
-                        println!("  {}", "margo config edit".cyan());
+                        println!("  {}", Color::Cyan.paint("margo config edit"));
                     }
                 }
                 Some(ConfigAction::Path) => {
@@ -177,18 +208,41 @@ fn main() -> Result<()> {
                     }
 
                     // open in editor
-                    let editor = std::env::var("EDITOR").unwrap_or_else(|_| "nano".to_string());
-                    let status = std::process::Command::new(&editor)
+                    let cfg = config::Config::load();
+                    let editor = cfg
+                        .editor
+                        .unwrap_or_else(|| {
+                            std::env::var("EDITOR").unwrap_or_else(|_| "nvim".to_string())
+                        });
+
+                    // handle $EDITOR in config value
+                    let editor = if editor == "$EDITOR" {
+                        std::env::var("EDITOR").unwrap_or_else(|_| "nvim".to_string())
+                    } else {
+                        editor
+                    };
+
+                    let parts: Vec<&str> = editor.split_whitespace().collect();
+                    let (cmd, args) = parts
+                        .split_first()
+                        .map(|(&c, a)| (c, a))
+                        .unwrap_or(("nvim", &[]));
+
+                    let status = std::process::Command::new(cmd)
+                        .args(args)
                         .arg(&config_path)
                         .status()?;
 
                     if !status.success() {
                         println!(
                             "{} failed to open editor '{}'",
-                            "error:".red().bold(),
+                            Color::Red.bold().paint("error:"),
                             editor
                         );
-                        println!("  set $EDITOR or edit manually: {}", config_path.display());
+                        println!(
+                            "  set $EDITOR or edit manually: {}",
+                            config_path.display()
+                        );
                     }
                 }
             }
