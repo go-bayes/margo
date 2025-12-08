@@ -10,12 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Interactive REPL mode (run `margo` with no arguments)
   - Vi mode with visual indicator (pink ● normal, teal ❯ insert)
+  - Right-prompt hints: `NORMAL • i insert` or `/help • :q quit`
+  - Vim-style quit commands (`:q`, `:q!`, `:wq`)
   - Persistent command history (`~/.config/margo/history`)
   - Catppuccin Mocha colour palette with pink branding
 - Slash commands: `/help`, `/config`, `/templates`, `/vars`, `/clear`
 - Fuzzy variable picker for init commands
   - 530 bundled NZAVS variable names with fuzzy search
   - Guided flow: model → baseline → exposure → outcomes
+  - Subtle background highlight on selected row
 - Tab completion for commands, variables, and templates
 - Syntax highlighting in REPL input
 - Configurable theme support (`[theme]` section in config.toml)
