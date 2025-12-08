@@ -333,7 +333,9 @@ fn cmd_help() -> Result<()> {
     print_help_item("/templates", "list all templates");
     print_help_item("/templates outcomes", "list outcome templates");
     print_help_item("/templates baselines", "list baseline templates");
-    print_help_item("/templates edit <name>", "edit template in $EDITOR");
+    print_help_item("/templates edit <name>", "interactive variable picker");
+    print_help_item("/templates open <name>", "open template in $EDITOR");
+    print_help_item("/templates new <type> <name>", "create new template");
     print_help_item("/vars [pattern]", "fuzzy search variables");
     print_help_item("/clear", "clear the screen");
     print_help_item("/quit, /q", "exit margo");
@@ -507,6 +509,65 @@ fn cmd_templates(args: &[&str]) -> Result<()> {
                     theme::red().paint("error:")
                 );
                 println!("  usage: /templates edit <name>");
+                return Ok(());
+            }
+            let name = args[1];
+
+            // try outcomes first, then baselines
+            let outcomes_path = Config::outcomes_dir().join(format!("{}.toml", name));
+            let baselines_path = Config::baselines_dir().join(format!("{}.toml", name));
+
+            let (path, kind) = if outcomes_path.exists() {
+                (outcomes_path, "outcomes")
+            } else if baselines_path.exists() {
+                (baselines_path, "baselines")
+            } else {
+                println!(
+                    "{} template not found: {}",
+                    theme::red().paint("error:"),
+                    theme::text().paint(name)
+                );
+                println!(
+                    "  create with: {}",
+                    theme::sapphire().paint(format!("/templates new outcomes {}", name))
+                );
+                return Ok(());
+            };
+
+            // load current vars
+            let template = if kind == "outcomes" {
+                Config::load_outcomes(name)
+            } else {
+                Config::load_baselines(name)
+            };
+
+            let current_vars = template.map(|t| t.vars).unwrap_or_default();
+
+            // interactive edit
+            println!();
+            match picker::edit_template(name, &current_vars)? {
+                Some(new_vars) => {
+                    save_template(&path, &new_vars)?;
+                    println!(
+                        "{} saved {} variables to {}",
+                        theme::green().paint("success:"),
+                        new_vars.len(),
+                        name
+                    );
+                }
+                None => {
+                    println!("{}", theme::yellow().paint("cancelled"));
+                }
+            }
+            Ok(())
+        }
+        "open" => {
+            if args.len() < 2 {
+                println!(
+                    "{} missing template name",
+                    theme::red().paint("error:")
+                );
+                println!("  usage: /templates open <name>");
                 return Ok(());
             }
             let name = args[1];
@@ -733,5 +794,15 @@ fn open_in_editor(path: &str) -> Result<()> {
         bail!("editor '{}' exited with error", editor);
     }
 
+    Ok(())
+}
+
+fn save_template(path: &std::path::Path, vars: &[String]) -> Result<()> {
+    let mut content = String::from("# template variables\n\nvars = [\n");
+    for var in vars {
+        content.push_str(&format!("    \"{}\",\n", var));
+    }
+    content.push_str("]\n");
+    fs::write(path, content)?;
     Ok(())
 }

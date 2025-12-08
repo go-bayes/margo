@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `catppuccin` (default) — full RGB colour palette
   - `basic` — 16-colour ANSI fallback for limited terminals
   - `plain` — no colours
+- Interactive template editor (`/templates edit <name>`)
+  - Toggle variables on/off with fuzzy search
+  - Pre-selects existing template variables (e.g., `wellbeing` shows `kessler_latent_depression`, `life_satisfaction`, etc.)
+- `/templates open <name>` to edit raw TOML in $EDITOR
 
 ### Changed
 - Default entry point is now REPL (previously required subcommand)

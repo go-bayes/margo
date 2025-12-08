@@ -143,3 +143,27 @@ pub fn pick_model() -> Result<Option<String>> {
 
     Ok(result.map(|s| s.split_whitespace().next().unwrap_or("grf").to_string()))
 }
+
+/// edit template variables with pre-selected items
+/// returns None if cancelled, Some(vec) with updated selection
+pub fn edit_template(name: &str, current_vars: &[String]) -> Result<Option<Vec<String>>> {
+    let variables: Vec<&str> = VARIABLES.iter().copied().collect();
+
+    // find indices of currently selected vars
+    let defaults: Vec<usize> = current_vars
+        .iter()
+        .filter_map(|v| variables.iter().position(|&var| var == v.as_str()))
+        .collect();
+
+    let prompt = format!("Edit template '{}' ({} vars):", name, current_vars.len());
+
+    let result = MultiSelect::new(&prompt, variables)
+        .with_vim_mode(true)
+        .with_page_size(15)
+        .with_default(&defaults)
+        .with_help_message("↑↓ navigate, Space toggle, / filter, Enter save, Esc cancel")
+        .with_render_config(catppuccin_config())
+        .prompt_skippable()?;
+
+    Ok(result.map(|v| v.into_iter().map(|s| s.to_string()).collect()))
+}
