@@ -31,6 +31,11 @@ enum Commands {
         #[command(subcommand)]
         action: Option<ConfigAction>,
     },
+    /// Manage templates (baselines and outcomes)
+    Templates {
+        #[command(subcommand)]
+        action: Option<TemplatesAction>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -41,6 +46,23 @@ enum ConfigAction {
     Path,
     /// Edit config file (opens in $EDITOR)
     Edit,
+}
+
+#[derive(Subcommand)]
+enum TemplatesAction {
+    /// List available templates
+    List,
+    /// List example templates (bundled with margo)
+    Examples,
+    /// Copy an example template to your config
+    Copy {
+        /// Template kind: "baselines" or "outcomes"
+        kind: String,
+        /// Template name (e.g., "default", "wellbeing")
+        name: String,
+    },
+    /// Initialise example templates (creates examples/ directories)
+    Init,
 }
 
 #[derive(Subcommand)]
@@ -65,10 +87,6 @@ enum InitTemplate {
         /// Custom project name (default: auto-generated from exposure-outcomes)
         #[arg(long, short = 'n')]
         name: Option<String>,
-
-        /// WHO mode for BMI/exercise variables: default, cat, or num
-        #[arg(long, short = 'w', default_value = "default")]
-        who_mode: String,
     },
     /// Create a GRF Event Study project (multi-outcome waves)
     GrfEvent {
@@ -123,7 +141,6 @@ fn main() -> Result<()> {
                 templates,
                 baselines,
                 name,
-                who_mode,
             } => {
                 commands::init::grf_from_config(
                     &exposure,
@@ -136,7 +153,6 @@ fn main() -> Result<()> {
                     &baselines,
                     None, // no baseline override from CLI
                     name.as_deref(),
-                    &who_mode,
                 )?;
             }
             InitTemplate::GrfEvent {
@@ -210,31 +226,8 @@ fn main() -> Result<()> {
 
                     // open in editor
                     let cfg = config::Config::load();
-                    let editor = cfg
-                        .editor
-                        .unwrap_or_else(|| {
-                            std::env::var("EDITOR").unwrap_or_else(|_| "nvim".to_string())
-                        });
-
-                    // handle $EDITOR in config value
-                    let editor = if editor == "$EDITOR" {
-                        std::env::var("EDITOR").unwrap_or_else(|_| "nvim".to_string())
-                    } else {
-                        editor
-                    };
-
-                    let parts: Vec<&str> = editor.split_whitespace().collect();
-                    let (cmd, args) = parts
-                        .split_first()
-                        .map(|(&c, a)| (c, a))
-                        .unwrap_or(("nvim", &[]));
-
-                    let status = std::process::Command::new(cmd)
-                        .args(args)
-                        .arg(&config_path)
-                        .status()?;
-
-                    if !status.success() {
+                    if !commands::utils::open_in_editor(&config_path.to_string_lossy(), &cfg)? {
+                        let editor = commands::utils::resolve_editor(&cfg);
                         println!(
                             "{} failed to open editor '{}'",
                             Color::Red.bold().paint("error:"),
@@ -244,6 +237,172 @@ fn main() -> Result<()> {
                             "  set $EDITOR or edit manually: {}",
                             config_path.display()
                         );
+                    }
+                }
+            }
+        }
+        Some(Commands::Templates { action }) => {
+            match action {
+                Some(TemplatesAction::List) | None => {
+                    // list user templates
+                    let baselines = config::Config::list_baselines();
+                    let outcomes = config::Config::list_outcomes();
+
+                    println!("{}", Color::Cyan.bold().paint("Your templates:"));
+                    println!();
+
+                    if baselines.is_empty() {
+                        println!("  baselines: (none)");
+                    } else {
+                        println!("  {}:", Color::Green.paint("baselines"));
+                        for name in &baselines {
+                            println!("    - {}", name);
+                        }
+                    }
+                    println!();
+
+                    if outcomes.is_empty() {
+                        println!("  outcomes: (none)");
+                    } else {
+                        println!("  {}:", Color::Green.paint("outcomes"));
+                        for name in &outcomes {
+                            println!("    - {}", name);
+                        }
+                    }
+                    println!();
+                    println!(
+                        "Templates stored in: {}",
+                        Color::Cyan.paint(config::Config::config_dir().display().to_string())
+                    );
+                    println!();
+                    println!(
+                        "See examples with: {}",
+                        Color::Cyan.paint("margo templates examples")
+                    );
+                }
+                Some(TemplatesAction::Examples) => {
+                    // first ensure examples are initialised
+                    if let Err(e) = config::Config::init_examples() {
+                        println!(
+                            "{} {}",
+                            Color::Red.bold().paint("error:"),
+                            e
+                        );
+                        std::process::exit(1);
+                    }
+
+                    let baselines = config::Config::list_baselines_examples();
+                    let outcomes = config::Config::list_outcomes_examples();
+
+                    println!("{}", Color::Cyan.bold().paint("Example templates:"));
+                    println!();
+
+                    if baselines.is_empty() {
+                        println!("  baselines/examples: (none)");
+                    } else {
+                        println!("  {}:", Color::Green.paint("baselines/examples"));
+                        for name in &baselines {
+                            println!("    - {}", name);
+                        }
+                    }
+                    println!();
+
+                    if outcomes.is_empty() {
+                        println!("  outcomes/examples: (none)");
+                    } else {
+                        println!("  {}:", Color::Green.paint("outcomes/examples"));
+                        for name in &outcomes {
+                            println!("    - {}", name);
+                        }
+                    }
+                    println!();
+                    println!(
+                        "Copy an example to your templates with:"
+                    );
+                    println!(
+                        "  {}",
+                        Color::Cyan.paint("margo templates copy baselines default")
+                    );
+                    println!(
+                        "  {}",
+                        Color::Cyan.paint("margo templates copy outcomes wellbeing")
+                    );
+                }
+                Some(TemplatesAction::Copy { kind, name }) => {
+                    // ensure examples exist first
+                    if let Err(e) = config::Config::init_examples() {
+                        println!(
+                            "{} {}",
+                            Color::Red.bold().paint("error:"),
+                            e
+                        );
+                        std::process::exit(1);
+                    }
+
+                    match config::Config::copy_example(&kind, &name) {
+                        Ok(dest) => {
+                            println!(
+                                "{} {} template '{}' to {}",
+                                Color::Green.bold().paint("Copied"),
+                                kind,
+                                name,
+                                dest.display()
+                            );
+                            println!();
+                            println!("You can now use it with:");
+                            if kind == "baselines" || kind == "baseline" {
+                                println!(
+                                    "  {}",
+                                    Color::Cyan.paint(format!("margo init grf exposure -b {}", name))
+                                );
+                            } else {
+                                println!(
+                                    "  {}",
+                                    Color::Cyan.paint(format!("margo init grf exposure -t {}", name))
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            println!(
+                                "{} {}",
+                                Color::Red.bold().paint("error:"),
+                                e
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Some(TemplatesAction::Init) => {
+                    match config::Config::init_examples() {
+                        Ok(created) => {
+                            if created.is_empty() {
+                                println!(
+                                    "{} example templates already initialised",
+                                    Color::Cyan.bold().paint("note:")
+                                );
+                            } else {
+                                println!(
+                                    "{} example templates",
+                                    Color::Green.bold().paint("Initialised")
+                                );
+                                for path in &created {
+                                    println!("  {} {}", Color::Green.paint("created"), path);
+                                }
+                            }
+                            println!();
+                            println!(
+                                "View examples with: {}",
+                                Color::Cyan.paint("margo templates examples")
+                            );
+                        }
+                        Err(e) => {
+                            println!(
+                                "{} {}",
+                                Color::Red.bold().paint("error:"),
+                                e
+                            );
+                            std::process::exit(1);
+                        }
                     }
                 }
             }

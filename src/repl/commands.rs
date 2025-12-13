@@ -3,11 +3,9 @@
 use anyhow::{bail, Result};
 use std::env;
 use std::fs;
-use std::process::Command;
 
 use crate::commands::init;
 use crate::config::Config;
-use crate::data::VARIABLES;
 use crate::theme;
 
 use super::fuzzy;
@@ -23,11 +21,11 @@ pub fn handle_slash(cmd: &str) -> Result<()> {
         "" => cmd_picker(),
         "help" | "h" | "?" => cmd_help(),
         "config" => cmd_config(args),
-        "templates" => cmd_templates(args),
+        "templates" | "t" => cmd_templates(args),
         "view" => cmd_view(args),
         "save" => cmd_save(args),
         "vars" | "v" => cmd_vars(args),
-        "theme" | "t" => cmd_theme(args),
+        "theme" | "th" => cmd_theme(args),
         "here" | "pwd" => cmd_here(),
         "home" | "~" => cmd_home(),
         "cd" => cmd_cd(args),
@@ -49,37 +47,20 @@ pub fn handle_slash(cmd: &str) -> Result<()> {
 }
 
 /// handle an init command
-pub fn handle_init(cmd: &str) -> Result<()> {
-    let parts: Vec<&str> = cmd.split_whitespace().collect();
+pub fn handle_init(_cmd: &str) -> Result<()> {
+    // always use guided menu for consistency
+    println!();
+    let model = match picker::pick_model()? {
+        Some(m) => m,
+        None => {
+            println!("{}", theme::yellow().paint("cancelled"));
+            return Ok(());
+        }
+    };
 
-    // bare "init" - guide through everything
-    if parts.len() < 2 {
-        println!();
-        let model = match picker::pick_model()? {
-            Some(m) => m,
-            None => {
-                println!("{}", theme::yellow().paint("cancelled"));
-                return Ok(());
-            }
-        };
-
-        return match model.as_str() {
-            "grf" => handle_init_grf(&[]),
-            "grf-event" => handle_init_grf_event(&[]),
-            "lmtp" => {
-                println!(
-                    "{} LMTP template not yet implemented",
-                    theme::yellow().paint("warning:")
-                );
-                Ok(())
-            }
-            _ => Ok(()),
-        };
-    }
-
-    match parts[1] {
-        "grf" => handle_init_grf(&parts[2..]),
-        "grf-event" => handle_init_grf_event(&parts[2..]),
+    match model.as_str() {
+        "grf" => handle_init_grf(),
+        "grf-event" => handle_init_grf_event(),
         "lmtp" => {
             println!(
                 "{} LMTP template not yet implemented",
@@ -87,110 +68,20 @@ pub fn handle_init(cmd: &str) -> Result<()> {
             );
             Ok(())
         }
-        _ => {
-            println!(
-                "{} unknown template: {}",
-                theme::yellow().paint("warning:"),
-                theme::text().paint(parts[1])
-            );
-            print_init_usage();
-            Ok(())
-        }
+        _ => Ok(()),
     }
 }
 
-fn handle_init_grf(args: &[&str]) -> Result<()> {
-    // parse args: init grf [baseline] <exposure> [outcomes...]
-    // flags: -t templates, -n name, -w who-mode
-    let mut baselines: Option<String> = None;
-    let mut exposure: Option<String> = None;
+fn handle_init_grf() -> Result<()> {
+    // guided menu flow
     let mut outcomes: Vec<String> = Vec::new();
     let mut templates: Option<Vec<String>> = None;
-    let mut name: Option<String> = None;
-    let mut who_mode = "default".to_string();
-
-    let mut i = 0;
-    while i < args.len() {
-        let arg = args[i];
-
-        if arg == "-t" || arg == "--templates" {
-            i += 1;
-            if i < args.len() {
-                templates = Some(args[i].split(',').map(String::from).collect());
-            }
-        } else if arg == "-n" || arg == "--name" {
-            i += 1;
-            if i < args.len() {
-                name = Some(args[i].to_string());
-            }
-        } else if arg == "-w" || arg == "--who-mode" {
-            i += 1;
-            if i < args.len() {
-                who_mode = args[i].to_string();
-            }
-        } else if baselines.is_none() {
-            // first positional could be baseline or exposure
-            // check if it's a known baseline template
-            let available_baselines = Config::list_baselines();
-            if available_baselines.contains(&arg.to_string()) {
-                baselines = Some(arg.to_string());
-            } else {
-                // assume it's the exposure
-                exposure = Some(arg.to_string());
-            }
-        } else if exposure.is_none() {
-            exposure = Some(arg.to_string());
-        } else {
-            outcomes.push(arg.to_string());
-        }
-        i += 1;
-    }
+    let name: Option<String> = None;
 
     println!();
 
-    // step 1: validate exposure FIRST if provided on command line
-    let exposure = if let Some(e) = exposure {
-        if VARIABLES.contains(&e.as_str()) {
-            Some(e)
-        } else {
-            // fuzzy search for similar variables
-            let matches: Vec<String> = fuzzy::search_variables(&e)
-                .into_iter()
-                .take(10)
-                .map(String::from)
-                .collect();
-
-            if matches.is_empty() {
-                println!(
-                    "{} variable '{}' not found",
-                    theme::red().paint("error:"),
-                    e
-                );
-                return Ok(());
-            }
-
-            println!(
-                "{} '{}' not found, showing similar:",
-                theme::yellow().paint("note:"),
-                e
-            );
-
-            match picker::pick_from_matches(&matches)? {
-                Some(selected) => Some(selected),
-                None => {
-                    println!("{}", theme::yellow().paint("cancelled"));
-                    return Ok(());
-                }
-            }
-        }
-    } else {
-        None
-    };
-
-    // step 2: baseline template (if not provided)
-    let (baseline, baseline_vars_override) = if let Some(b) = baselines {
-        (b, None)
-    } else {
+    // step 1: baseline template
+    let (baseline, baseline_vars_override) = {
         let available = Config::list_baselines();
         if available.is_empty() {
             println!(
@@ -259,20 +150,16 @@ fn handle_init_grf(args: &[&str]) -> Result<()> {
         }
     };
 
-    // step 3: exposure picker (if not provided on command line)
-    let exposure = if let Some(e) = exposure {
-        e
-    } else {
-        match picker::pick_exposure()? {
-            Some(selected) => selected,
-            None => {
-                println!("{}", theme::yellow().paint("cancelled"));
-                return Ok(());
-            }
+    // step 2: exposure picker
+    let exposure = match picker::pick_exposure()? {
+        Some(selected) => selected,
+        None => {
+            println!("{}", theme::yellow().paint("cancelled"));
+            return Ok(());
         }
     };
 
-    // step 4: outcome variables (if not provided and no templates)
+    // step 3: outcome variables
     if outcomes.is_empty() && templates.is_none() {
         // offer choice: templates or individual variables
         let available_templates = Config::list_outcomes();
@@ -359,21 +246,35 @@ fn handle_init_grf(args: &[&str]) -> Result<()> {
         theme::text().paint(&outcome_display)
     );
 
-    // show output directory
+    // show project location (scripts go here)
+    let cwd = std::env::current_dir()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| ".".to_string());
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("scripts:"),
+        theme::text().paint(shorten_path(&cwd))
+    );
+
+    // show output directory (model outputs go here)
     let config = Config::load();
     let project_name = name.clone().unwrap_or_else(|| {
         let year = chrono_year();
         format!("{}-{}", year, exposure.replace('_', "-"))
     });
-    if let Some(ref push_mods) = config.push_mods {
-        println!(
-            "  {} {}/{}",
-            theme::subtext0().paint("output:"),
-            theme::text().paint(shorten_path(push_mods)),
-            theme::text().paint(&project_name)
-        );
-    }
+    let push_mods = config.push_mods.unwrap_or_else(|| format!("{}/outputs", cwd));
+    println!(
+        "  {} {}/{}",
+        theme::subtext0().paint("output:"),
+        theme::text().paint(shorten_path(&push_mods)),
+        theme::text().paint(&project_name)
+    );
     println!();
+
+    // check for existing project files
+    if !check_existing_files()? {
+        return Ok(());
+    }
 
     // confirm before creating
     if !picker::confirm_create()? {
@@ -394,7 +295,6 @@ fn handle_init_grf(args: &[&str]) -> Result<()> {
         &baseline,
         baseline_vars_override.as_deref(),
         name.as_deref(),
-        &who_mode,
     )
 }
 
@@ -422,97 +322,12 @@ fn chrono_year() -> String {
     format!("{}", 1970 + years_since_1970)
 }
 
-fn handle_init_grf_event(args: &[&str]) -> Result<()> {
-    // parse args: init grf-event [baseline] <exposure> [-o outcome] [-w waves]
-    let mut baselines: Option<String> = None;
-    let mut exposure: Option<String> = None;
-    let mut outcome: Option<String> = None;
-    let mut waves: Option<Vec<String>> = None;
-    let mut reference: Option<String> = None;
-    let mut name: Option<String> = None;
-
-    let mut i = 0;
-    while i < args.len() {
-        let arg = args[i];
-
-        if arg == "-o" || arg == "--outcome" {
-            i += 1;
-            if i < args.len() {
-                outcome = Some(args[i].to_string());
-            }
-        } else if arg == "-w" || arg == "--waves" {
-            i += 1;
-            if i < args.len() {
-                waves = Some(args[i].split(',').map(String::from).collect());
-            }
-        } else if arg == "-r" || arg == "--reference" {
-            i += 1;
-            if i < args.len() {
-                reference = Some(args[i].to_string());
-            }
-        } else if arg == "-n" || arg == "--name" {
-            i += 1;
-            if i < args.len() {
-                name = Some(args[i].to_string());
-            }
-        } else if baselines.is_none() {
-            // first positional could be baseline or exposure
-            let available_baselines = Config::list_baselines();
-            if available_baselines.contains(&arg.to_string()) {
-                baselines = Some(arg.to_string());
-            } else {
-                exposure = Some(arg.to_string());
-            }
-        } else if exposure.is_none() {
-            exposure = Some(arg.to_string());
-        }
-        i += 1;
-    }
-
+fn handle_init_grf_event() -> Result<()> {
+    // guided menu flow
     println!();
 
-    // step 1: validate exposure FIRST if provided on command line
-    let exposure = if let Some(e) = exposure {
-        if VARIABLES.contains(&e.as_str()) {
-            Some(e)
-        } else {
-            let matches: Vec<String> = fuzzy::search_variables(&e)
-                .into_iter()
-                .take(10)
-                .map(String::from)
-                .collect();
-
-            if matches.is_empty() {
-                println!(
-                    "{} variable '{}' not found",
-                    theme::red().paint("error:"),
-                    e
-                );
-                return Ok(());
-            }
-
-            println!(
-                "{} '{}' not found, showing similar:",
-                theme::yellow().paint("note:"),
-                e
-            );
-
-            match picker::pick_from_matches(&matches)? {
-                Some(selected) => Some(selected),
-                None => {
-                    println!("{}", theme::yellow().paint("cancelled"));
-                    return Ok(());
-                }
-            }
-        }
-    } else {
-        None
-    };
-
-    // step 2: baseline template
-    let baseline = if let Some(b) = baselines {
-        b
-    } else {
+    // step 1: baseline template
+    let baseline = {
         let available = Config::list_baselines();
         if available.is_empty() {
             println!(
@@ -531,63 +346,32 @@ fn handle_init_grf_event(args: &[&str]) -> Result<()> {
         }
     };
 
-    // step 3: exposure picker (if not provided on command line)
-    let exposure = if let Some(e) = exposure {
-        e
-    } else {
-        match picker::pick_exposure()? {
-            Some(selected) => selected,
-            None => {
-                println!("{}", theme::yellow().paint("cancelled"));
-                return Ok(());
-            }
+    // step 2: exposure picker
+    let exposure = match picker::pick_exposure()? {
+        Some(selected) => selected,
+        None => {
+            println!("{}", theme::yellow().paint("cancelled"));
+            return Ok(());
         }
     };
 
-    // step 3: outcome variable (single for event study)
-    let outcome = if let Some(o) = outcome {
-        // validate outcome
-        if VARIABLES.contains(&o.as_str()) {
-            Some(o)
+    // step 3: outcome variable (optional for event study)
+    let outcome = {
+        let result = inquire::Confirm::new("Specify outcome variable?")
+            .with_default(false)
+            .prompt_skippable()?;
+
+        if result == Some(true) {
+            picker::pick_variable("Select outcome variable:")?
         } else {
-            let matches: Vec<String> = fuzzy::search_variables(&o)
-                .into_iter()
-                .take(10)
-                .map(String::from)
-                .collect();
-
-            if matches.is_empty() {
-                println!(
-                    "{} outcome '{}' not found",
-                    theme::red().paint("error:"),
-                    o
-                );
-                return Ok(());
-            }
-
-            println!(
-                "{} '{}' not found, showing similar:",
-                theme::yellow().paint("note:"),
-                o
-            );
-
-            match picker::pick_from_matches(&matches)? {
-                Some(selected) => Some(selected),
-                None => {
-                    println!("{}", theme::yellow().paint("cancelled"));
-                    return Ok(());
-                }
-            }
-        }
-    } else {
-        match picker::pick_variable("Select outcome variable:")? {
-            Some(selected) => Some(selected),
-            None => {
-                println!("{}", theme::yellow().paint("cancelled"));
-                return Ok(());
-            }
+            None
         }
     };
+
+    // waves/reference/name use defaults (could be extended later)
+    let waves: Option<Vec<String>> = None;
+    let reference: Option<String> = None;
+    let name: Option<String> = None;
 
     // step 4: show summary and confirm
     println!();
@@ -626,20 +410,35 @@ fn handle_init_grf_event(args: &[&str]) -> Result<()> {
         );
     }
 
+    // show project location (scripts go here)
+    let cwd = std::env::current_dir()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| ".".to_string());
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("scripts:"),
+        theme::text().paint(shorten_path(&cwd))
+    );
+
+    // show output directory
     let config = Config::load();
     let project_name = name.clone().unwrap_or_else(|| {
         let year = chrono_year();
         format!("{}-{}-event", year, exposure.replace('_', "-"))
     });
-    if let Some(ref push_mods) = config.push_mods {
-        println!(
-            "  {} {}/{}",
-            theme::subtext0().paint("output:"),
-            theme::text().paint(shorten_path(push_mods)),
-            theme::text().paint(&project_name)
-        );
-    }
+    let push_mods = config.push_mods.unwrap_or_else(|| format!("{}/outputs", cwd));
+    println!(
+        "  {} {}/{}",
+        theme::subtext0().paint("output:"),
+        theme::text().paint(shorten_path(&push_mods)),
+        theme::text().paint(&project_name)
+    );
     println!();
+
+    // check for existing project files
+    if !check_existing_files()? {
+        return Ok(());
+    }
 
     if !picker::confirm_create()? {
         println!("{}", theme::yellow().paint("cancelled"));
@@ -658,26 +457,6 @@ fn handle_init_grf_event(args: &[&str]) -> Result<()> {
     )
 }
 
-fn print_init_usage() {
-    println!("  usage: init <template> [options]");
-    println!();
-    println!("  templates:");
-    println!(
-        "    {}   {}",
-        theme::sapphire().paint("grf"),
-        theme::subtext0().paint("generalised random forests")
-    );
-    println!(
-        "    {}   {}",
-        theme::sapphire().paint("grf-event"),
-        theme::subtext0().paint("grf event study (multi-wave)")
-    );
-    println!(
-        "    {}   {}",
-        theme::overlay0().paint("lmtp"),
-        theme::overlay0().paint("longitudinal modified treatment policies (coming soon)")
-    );
-}
 
 fn cmd_help() -> Result<()> {
     println!();
@@ -693,16 +472,16 @@ fn cmd_help() -> Result<()> {
     print_help_item("/config", "show current configuration");
     print_help_item("/config edit", "edit config in $EDITOR");
     print_help_item("/config init", "create default config");
-    print_help_item("/templates", "list all templates");
-    print_help_item("/templates outcomes", "list outcome templates");
-    print_help_item("/templates baselines", "list baseline templates");
-    print_help_item("/templates edit <name>", "interactive variable picker");
-    print_help_item("/templates open <name>", "open template in $EDITOR");
-    print_help_item("/templates new <type> <name>", "create new template");
+    print_help_item("/templates, /t", "list all templates");
+    print_help_item("/t outcomes", "list outcome templates");
+    print_help_item("/t baselines", "list baseline templates");
+    print_help_item("/t edit <name>", "interactive variable picker");
+    print_help_item("/t open <name>", "open template in $EDITOR");
+    print_help_item("/t new <type> <name>", "create new template");
     print_help_item("/vars [pattern]", "fuzzy search variables");
     print_help_item("/view [name]", "browse templates and their variables");
     print_help_item("/save <type> <name>", "create new template from variable picker");
-    print_help_item("/theme [light|dark]", "toggle or set theme");
+    print_help_item("/theme, /th", "toggle or set theme");
     print_help_item("/e, /o [name]", "quick edit template in $EDITOR");
     print_help_item("/here, /pwd", "show current directory");
     print_help_item("/home, /~", "go home + refresh");
@@ -712,18 +491,9 @@ fn cmd_help() -> Result<()> {
     println!();
 
     println!("  {}", theme::subtext1().paint("Init commands"));
-    print_help_item(
-        "init grf <exposure> [outcomes...]",
-        "create grf project",
-    );
-    print_help_item("init grf-event <exposure>", "create grf event study");
-    println!();
-
-    println!("  {}", theme::subtext1().paint("Options for init grf"));
-    print_help_item("-t, --templates <list>", "outcome templates (comma-sep)");
-    print_help_item("-b, --baselines <name>", "baseline template");
-    print_help_item("-n, --name <name>", "custom project name");
-    print_help_item("-w, --who-mode <mode>", "default, cat, or num");
+    print_help_item("init", "guided project setup");
+    print_help_item("init grf", "create grf project");
+    print_help_item("init grf-event", "create grf event study");
     println!();
 
     println!("  {}", theme::subtext1().paint("Keybindings (vi mode)"));
@@ -783,8 +553,8 @@ fn cmd_config(args: &[&str]) -> Result<()> {
                 config.baselines.as_deref().unwrap_or("default"),
             );
             print_config_value(
-                "who_mode",
-                config.who_mode.as_deref().unwrap_or("default"),
+                "use_renv",
+                if config.use_renv.unwrap_or(true) { "true" } else { "false" },
             );
             println!();
 
@@ -1617,6 +1387,78 @@ fn cmd_cd(args: &[&str]) -> Result<()> {
     Ok(())
 }
 
+/// check for existing project files and warn user
+/// returns true if ok to proceed, false if cancelled
+fn check_existing_files() -> Result<bool> {
+    use std::path::Path;
+
+    let project_files = [
+        "study.toml",
+        "01-data-prep.R",
+        "02-wide-format.R",
+        "03-causal-forest.R",
+        "04-heterogeneity.R",
+        "05-policy-tree.R",
+        "06-positivity.R",
+        "07-tables.R",
+        "08-plots.R",
+    ];
+
+    let study_toml_exists = Path::new("study.toml").exists();
+    let existing_files: Vec<&str> = project_files
+        .iter()
+        .filter(|f| Path::new(f).exists())
+        .copied()
+        .collect();
+
+    if study_toml_exists {
+        // full project exists
+        println!(
+            "  {} Project already exists in this directory",
+            theme::yellow().paint("⚠")
+        );
+        println!(
+            "    {} found",
+            theme::overlay0().paint("study.toml")
+        );
+        println!();
+
+        let result = inquire::Confirm::new("Overwrite existing project?")
+            .with_default(false)
+            .prompt_skippable()?;
+
+        if result != Some(true) {
+            println!("{}", theme::yellow().paint("cancelled"));
+            return Ok(false);
+        }
+    } else if !existing_files.is_empty() {
+        // some files exist but no study.toml - unusual state
+        println!(
+            "  {} Found project files but no study.toml",
+            theme::yellow().paint("⚠")
+        );
+        for file in &existing_files {
+            println!(
+                "    {} {}",
+                theme::overlay0().paint("•"),
+                theme::text().paint(*file)
+            );
+        }
+        println!();
+
+        let result = inquire::Confirm::new("Continue anyway? (files will be overwritten)")
+            .with_default(false)
+            .prompt_skippable()?;
+
+        if result != Some(true) {
+            println!("{}", theme::yellow().paint("cancelled"));
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
+}
+
 fn shorten_path(path: &str) -> String {
     if let Some(home) = dirs::home_dir() {
         if let Some(home_str) = home.to_str() {
@@ -1629,32 +1471,11 @@ fn shorten_path(path: &str) -> String {
 }
 
 fn open_in_editor(path: &str) -> Result<()> {
-    // try config editor, then $EDITOR, then fall back to nvim
     let config = Config::load();
-    let editor = config
-        .editor
-        .unwrap_or_else(|| std::env::var("EDITOR").unwrap_or_else(|_| "nvim".to_string()));
-
-    // handle $EDITOR in config value
-    let editor = if editor == "$EDITOR" {
-        std::env::var("EDITOR").unwrap_or_else(|_| "nvim".to_string())
-    } else {
-        editor
-    };
-
-    // split editor command in case it has args (e.g., "code --wait")
-    let parts: Vec<&str> = editor.split_whitespace().collect();
-    let (cmd, args) = parts.split_first().map(|(&c, a)| (c, a)).unwrap_or(("nvim", &[]));
-
-    let status = Command::new(cmd)
-        .args(args)
-        .arg(path)
-        .status()?;
-
-    if !status.success() {
+    if !crate::commands::utils::open_in_editor(path, &config)? {
+        let editor = crate::commands::utils::resolve_editor(&config);
         bail!("editor '{}' exited with error", editor);
     }
-
     Ok(())
 }
 

@@ -17,29 +17,52 @@ fn temp_dir() -> tempfile::TempDir {
     tempfile::tempdir().expect("failed to create temp dir")
 }
 
+/// create a temp config file with paths set up
+fn setup_config(tmp: &tempfile::TempDir) {
+    let config_dir = tmp.path().join(".config").join("margo");
+    fs::create_dir_all(&config_dir).expect("failed to create config dir");
+
+    let config_content = format!(
+        r#"[paths]
+pull_data = "{}"
+push_mods = "{}"
+"#,
+        tmp.path().display(),
+        tmp.path().join("outputs").display()
+    );
+
+    fs::write(config_dir.join("config.toml"), config_content)
+        .expect("failed to write config file");
+}
+
 #[test]
-fn test_grf_creates_project_directory() {
+fn test_grf_creates_files_in_current_directory() {
     let tmp = temp_dir();
-    let project_path = tmp.path().join("test-project");
+    setup_config(&tmp);
 
     let output = Command::new(margo_bin())
-        .args(["init", "grf", "test-project"])
+        .args(["init", "grf", "test_exposure"])
         .current_dir(tmp.path())
+        .env("HOME", tmp.path())
         .output()
         .expect("failed to execute margo");
 
     assert!(output.status.success(), "margo init grf failed: {:?}", output);
-    assert!(project_path.exists(), "project directory was not created");
+
+    // files are created in current directory (not a subdirectory)
+    let study_toml = tmp.path().join("study.toml");
+    assert!(study_toml.exists(), "study.toml was not created in current directory");
 }
 
 #[test]
 fn test_grf_creates_all_expected_files() {
     let tmp = temp_dir();
-    let project_path = tmp.path().join("test-project");
+    setup_config(&tmp);
 
     Command::new(margo_bin())
-        .args(["init", "grf", "test-project"])
+        .args(["init", "grf", "test_exposure"])
         .current_dir(tmp.path())
+        .env("HOME", tmp.path())
         .output()
         .expect("failed to execute margo");
 
@@ -47,6 +70,7 @@ fn test_grf_creates_all_expected_files() {
         "study.toml",
         "README.md",
         ".gitignore",
+        "00-setup.R",
         "01-data-prep.R",
         "02-wide-format.R",
         "03-causal-forest.R",
@@ -58,7 +82,7 @@ fn test_grf_creates_all_expected_files() {
     ];
 
     for file in expected_files {
-        let file_path = project_path.join(file);
+        let file_path = tmp.path().join(file);
         assert!(file_path.exists(), "expected file {} was not created", file);
     }
 }
@@ -66,15 +90,16 @@ fn test_grf_creates_all_expected_files() {
 #[test]
 fn test_grf_study_toml_is_valid_toml() {
     let tmp = temp_dir();
-    let project_path = tmp.path().join("test-project");
+    setup_config(&tmp);
 
     Command::new(margo_bin())
-        .args(["init", "grf", "test-project"])
+        .args(["init", "grf", "test_exposure"])
         .current_dir(tmp.path())
+        .env("HOME", tmp.path())
         .output()
         .expect("failed to execute margo");
 
-    let toml_path = project_path.join("study.toml");
+    let toml_path = tmp.path().join("study.toml");
     let content = fs::read_to_string(&toml_path).expect("failed to read study.toml");
 
     // parse as TOML - will panic if invalid
@@ -94,15 +119,34 @@ fn test_grf_study_toml_is_valid_toml() {
 #[test]
 fn test_grf_study_toml_has_standard_baseline_vars() {
     let tmp = temp_dir();
-    let project_path = tmp.path().join("test-project");
+    setup_config(&tmp);
+
+    // also create a baselines template
+    let baselines_dir = tmp.path().join(".config").join("margo").join("baselines");
+    fs::create_dir_all(&baselines_dir).expect("failed to create baselines dir");
+    let default_baselines = r#"vars = [
+    "age",
+    "male_binary",
+    "agreeableness",
+    "conscientiousness",
+    "extraversion",
+    "honesty_humility",
+    "neuroticism",
+    "openness",
+    "rwa",
+    "sdo"
+]"#;
+    fs::write(baselines_dir.join("default.toml"), default_baselines)
+        .expect("failed to write baselines template");
 
     Command::new(margo_bin())
-        .args(["init", "grf", "test-project"])
+        .args(["init", "grf", "test_exposure"])
         .current_dir(tmp.path())
+        .env("HOME", tmp.path())
         .output()
         .expect("failed to execute margo");
 
-    let toml_path = project_path.join("study.toml");
+    let toml_path = tmp.path().join("study.toml");
     let content = fs::read_to_string(&toml_path).expect("failed to read study.toml");
     let parsed: toml::Table = content.parse().expect("study.toml is not valid TOML");
 
@@ -121,56 +165,56 @@ fn test_grf_study_toml_has_standard_baseline_vars() {
 
     assert!(var_names.contains(&"age"), "missing 'age' in baseline vars");
     assert!(var_names.contains(&"male_binary"), "missing 'male_binary' in baseline vars");
-    assert!(var_names.contains(&"agreeableness"), "missing 'agreeableness' in baseline vars");
-    assert!(var_names.contains(&"conscientiousness"), "missing 'conscientiousness' in baseline vars");
-    assert!(var_names.contains(&"extraversion"), "missing 'extraversion' in baseline vars");
-    assert!(var_names.contains(&"honesty_humility"), "missing 'honesty_humility' in baseline vars");
-    assert!(var_names.contains(&"neuroticism"), "missing 'neuroticism' in baseline vars");
-    assert!(var_names.contains(&"openness"), "missing 'openness' in baseline vars");
-    assert!(var_names.contains(&"rwa"), "missing 'rwa' in baseline vars");
-    assert!(var_names.contains(&"sdo"), "missing 'sdo' in baseline vars");
-
-    // check we have approximately the right count (39 standard vars)
-    assert!(vars.len() >= 35, "expected at least 35 baseline vars, got {}", vars.len());
 }
 
 #[test]
-fn test_grf_study_toml_has_who_mode() {
+fn test_grf_creates_setup_script_with_renv() {
     let tmp = temp_dir();
-    let project_path = tmp.path().join("test-project");
+    setup_config(&tmp);
 
     Command::new(margo_bin())
-        .args(["init", "grf", "test-project"])
+        .args(["init", "grf", "test_exposure"])
         .current_dir(tmp.path())
+        .env("HOME", tmp.path())
         .output()
         .expect("failed to execute margo");
 
-    let toml_path = project_path.join("study.toml");
-    let content = fs::read_to_string(&toml_path).expect("failed to read study.toml");
-    let parsed: toml::Table = content.parse().expect("study.toml is not valid TOML");
+    // check that 00-setup.R was created with renv content
+    let setup_path = tmp.path().join("00-setup.R");
+    assert!(setup_path.exists(), "00-setup.R should exist");
 
-    let baseline = parsed.get("baseline").expect("missing baseline section");
-    let who_mode = baseline
-        .get("who_mode")
-        .expect("missing baseline.who_mode")
-        .as_str()
-        .expect("who_mode is not a string");
-
-    assert_eq!(who_mode, "default", "who_mode should default to 'default'");
+    let setup_content = fs::read_to_string(&setup_path).expect("failed to read 00-setup.R");
+    assert!(
+        setup_content.contains("renv::init()"),
+        "00-setup.R should contain renv::init() by default"
+    );
 }
 
 #[test]
 fn test_grf_study_toml_ordinal_vars_are_subset_of_baseline() {
     let tmp = temp_dir();
-    let project_path = tmp.path().join("test-project");
+    setup_config(&tmp);
+
+    // create a baselines template with ordinal vars
+    let baselines_dir = tmp.path().join(".config").join("margo").join("baselines");
+    fs::create_dir_all(&baselines_dir).expect("failed to create baselines dir");
+    let default_baselines = r#"vars = [
+    "age",
+    "education_level_coarsen",
+    "eth_cat",
+    "rural_gch_2018_l"
+]"#;
+    fs::write(baselines_dir.join("default.toml"), default_baselines)
+        .expect("failed to write baselines template");
 
     Command::new(margo_bin())
-        .args(["init", "grf", "test-project"])
+        .args(["init", "grf", "test_exposure"])
         .current_dir(tmp.path())
+        .env("HOME", tmp.path())
         .output()
         .expect("failed to execute margo");
 
-    let toml_path = project_path.join("study.toml");
+    let toml_path = tmp.path().join("study.toml");
     let content = fs::read_to_string(&toml_path).expect("failed to read study.toml");
     let parsed: toml::Table = content.parse().expect("study.toml is not valid TOML");
 
@@ -208,44 +252,38 @@ fn test_grf_study_toml_ordinal_vars_are_subset_of_baseline() {
 }
 
 #[test]
-fn test_grf_project_name_appears_in_files() {
+fn test_grf_exposure_appears_in_study_toml() {
     let tmp = temp_dir();
-    let project_name = "my-custom-study";
-    let project_path = tmp.path().join(project_name);
+    setup_config(&tmp);
 
     Command::new(margo_bin())
-        .args(["init", "grf", project_name])
+        .args(["init", "grf", "church_attendance"])
         .current_dir(tmp.path())
+        .env("HOME", tmp.path())
         .output()
         .expect("failed to execute margo");
 
-    // check study.toml contains project name
-    let toml_content = fs::read_to_string(project_path.join("study.toml")).unwrap();
+    // check study.toml contains exposure name
+    let toml_content = fs::read_to_string(tmp.path().join("study.toml")).unwrap();
     assert!(
-        toml_content.contains(project_name),
-        "study.toml should contain project name"
-    );
-
-    // check README contains project name
-    let readme_content = fs::read_to_string(project_path.join("README.md")).unwrap();
-    assert!(
-        readme_content.contains(project_name),
-        "README.md should contain project name"
+        toml_content.contains("church_attendance"),
+        "study.toml should contain exposure name"
     );
 }
 
 #[test]
 fn test_grf_waves_default_to_time_10_11_12() {
     let tmp = temp_dir();
-    let project_path = tmp.path().join("test-project");
+    setup_config(&tmp);
 
     Command::new(margo_bin())
-        .args(["init", "grf", "test-project"])
+        .args(["init", "grf", "test_exposure"])
         .current_dir(tmp.path())
+        .env("HOME", tmp.path())
         .output()
         .expect("failed to execute margo");
 
-    let toml_path = project_path.join("study.toml");
+    let toml_path = tmp.path().join("study.toml");
     let content = fs::read_to_string(&toml_path).expect("failed to read study.toml");
     let parsed: toml::Table = content.parse().expect("study.toml is not valid TOML");
 

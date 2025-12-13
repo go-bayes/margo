@@ -5,6 +5,8 @@
 ///
 /// returns a vector of (filename, content) tuples
 
+use super::{format_string_array, format_var_array};
+
 #[allow(dead_code)]
 pub fn get_template_files(project_name: &str) -> Vec<(String, String)> {
     vec![
@@ -165,24 +167,6 @@ ribbon_alpha = 0.2
         reference_wave = reference_wave,
         baseline_str = baseline_str,
     )
-}
-
-/// format a vec of strings as a TOML array
-fn format_var_array(vars: &[String]) -> String {
-    if vars.is_empty() {
-        return "[]".to_string();
-    }
-    let items: Vec<String> = vars.iter().map(|v| format!("\"{}\"", v)).collect();
-    format!("[\n  {}\n]", items.join(",\n  "))
-}
-
-/// format a vec of strings as a single-line TOML array
-fn format_string_array(vars: &[String]) -> String {
-    if vars.is_empty() {
-        return "[]".to_string();
-    }
-    let items: Vec<String> = vars.iter().map(|v| format!("\"{}\"", v)).collect();
-    format!("[{}]", items.join(", "))
 }
 
 #[allow(dead_code)]

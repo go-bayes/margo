@@ -1,11 +1,18 @@
 use anyhow::{Context, Result};
+use crossterm::tty::IsTty;
 use nu_ansi_term::Color;
 use std::fs;
+use std::io::stdin;
 use std::path::Path;
 
 use crate::config::Config;
 use crate::templates::grf;
 use crate::templates::grf_event;
+
+/// check if we're running in interactive mode
+fn is_interactive() -> bool {
+    stdin().is_tty()
+}
 
 /// initialise a GRF project from config and templates
 pub fn grf_from_config(
@@ -15,25 +22,24 @@ pub fn grf_from_config(
     baselines_name: &str,
     baselines_override: Option<&[String]>,
     custom_name: Option<&str>,
-    who_mode: &str,
 ) -> Result<()> {
     // load user config
     let config = Config::load();
 
-    // check required paths are configured
-    let pull_data = config.pull_data.ok_or_else(|| {
-        anyhow::anyhow!(
-            "pull_data not configured. run: {} and set paths",
-            Color::Cyan.paint("margo config")
-        )
-    })?;
+    // get pull_data path - from config or default to current directory
+    let pull_data = config.pull_data.clone().unwrap_or_else(|| {
+        std::env::current_dir()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| ".".to_string())
+    });
 
-    let push_mods_base = config.push_mods.ok_or_else(|| {
-        anyhow::anyhow!(
-            "push_mods not configured. run: {} and set paths",
-            Color::Cyan.paint("margo config")
-        )
-    })?;
+    // get push_mods path - from config or default to ./outputs
+    let push_mods_base = config.push_mods.clone().unwrap_or_else(|| {
+        // default to outputs subdirectory in current working directory
+        std::env::current_dir()
+            .map(|p| p.join("outputs").display().to_string())
+            .unwrap_or_else(|_| "./outputs".to_string())
+    });
 
     // collect outcome variables from direct args and/or templates
     let mut outcome_vars: Vec<String> = Vec::new();
@@ -96,6 +102,9 @@ pub fn grf_from_config(
     fs::create_dir_all(&push_mods_path)
         .with_context(|| format!("failed to create output directory '{}'", push_mods_path))?;
 
+    // check renv setting (default to true)
+    let use_renv = config.use_renv.unwrap_or(true);
+
     println!(
         "{} GRF project '{}'",
         Color::Green.bold().paint("Creating"),
@@ -110,7 +119,7 @@ pub fn grf_from_config(
         exposure,
         &baseline_vars,
         &outcome_vars,
-        who_mode,
+        use_renv,
     );
 
     for (filename, content) in files {
@@ -125,10 +134,16 @@ pub fn grf_from_config(
     println!("Scripts created in current directory");
     println!("Outputs will be written to: {}", Color::Cyan.paint(&push_mods_path));
     println!();
-    println!("Next steps:");
-    println!("  1. Review {} and adjust as needed", Color::Cyan.paint("study.toml"));
-    println!("  2. Run scripts in order: 01, 02, 03...");
-    println!();
+
+    // offer to open study.toml in editor (only in interactive mode)
+    if is_interactive() && prompt_open_in_editor()? {
+        open_in_editor("study.toml", &config)?;
+    } else {
+        println!("Next steps:");
+        println!("  1. Review {} and adjust as needed", Color::Cyan.paint("study.toml"));
+        println!("  2. Run scripts in order: 01, 02, 03...");
+        println!();
+    }
 
     Ok(())
 }
@@ -252,20 +267,20 @@ pub fn grf_event_from_config(
     // load user config
     let config = Config::load();
 
-    // check required paths are configured
-    let pull_data = config.pull_data.ok_or_else(|| {
-        anyhow::anyhow!(
-            "pull_data not configured. run: {} and set paths",
-            Color::Cyan.paint("margo config")
-        )
-    })?;
+    // get pull_data path - from config or default to current directory
+    let pull_data = config.pull_data.clone().unwrap_or_else(|| {
+        std::env::current_dir()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| ".".to_string())
+    });
 
-    let push_mods_base = config.push_mods.ok_or_else(|| {
-        anyhow::anyhow!(
-            "push_mods not configured. run: {} and set paths",
-            Color::Cyan.paint("margo config")
-        )
-    })?;
+    // get push_mods path - from config or default to ./outputs
+    let push_mods_base = config.push_mods.clone().unwrap_or_else(|| {
+        // default to outputs subdirectory in current working directory
+        std::env::current_dir()
+            .map(|p| p.join("outputs").display().to_string())
+            .unwrap_or_else(|_| "./outputs".to_string())
+    });
 
     // outcome variable (default to exposure if not specified)
     let outcome_var = outcome.unwrap_or("outcome_variable");
@@ -338,10 +353,39 @@ pub fn grf_event_from_config(
     println!("Scripts created in current directory");
     println!("Outputs will be written to: {}", Color::Cyan.paint(&push_mods_path));
     println!();
-    println!("Next steps:");
-    println!("  1. Review {} and adjust wave definitions", Color::Cyan.paint("study.toml"));
-    println!("  2. Run scripts in order: 01, 02, 03...");
-    println!();
 
+    // offer to open study.toml in editor (only in interactive mode)
+    if is_interactive() && prompt_open_in_editor()? {
+        open_in_editor("study.toml", &config)?;
+    } else {
+        println!("Next steps:");
+        println!("  1. Review {} and adjust wave definitions", Color::Cyan.paint("study.toml"));
+        println!("  2. Run scripts in order: 01, 02, 03...");
+        println!();
+    }
+
+    Ok(())
+}
+
+/// prompt user to open study.toml in editor
+fn prompt_open_in_editor() -> Result<bool> {
+    let result = inquire::Confirm::new("Open study.toml in editor?")
+        .with_default(true)
+        .prompt_skippable()?;
+
+    Ok(result.unwrap_or(false))
+}
+
+/// open a file in the user's preferred editor
+fn open_in_editor(filename: &str, config: &Config) -> Result<()> {
+    if !super::utils::open_in_editor(filename, config)? {
+        let editor = super::utils::resolve_editor(config);
+        println!(
+            "{} failed to open editor '{}'",
+            Color::Red.bold().paint("error:"),
+            editor
+        );
+        println!("  edit {} manually", Color::Cyan.paint(filename));
+    }
     Ok(())
 }

@@ -5,6 +5,38 @@ Notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3] - 2025-12-13
+
+### Added
+- `margo templates` command with subcommands: `list`, `examples`, `copy`, `init`
+- Bundled example templates in `baselines/examples/` and `outcomes/examples/`
+- `00-setup.R` script with renv::init() for reproducible R environments
+- `use_renv` config option (defaults to true) to control renv integration
+
+### Changed
+- Removed `who_mode` option (users should define variables in their own templates)
+- Templates served as defaults in `examples/` subdirectory, never overwriting user templates
+
+### Refactored
+- Extracted `format_var_array()` to shared `templates/mod.rs`
+- Extracted editor spawning to `commands/utils.rs`
+
+## [0.3.2] - 2025-12-09
+
+### Changed
+- `/t` shortcut now maps to `/templates` (was `/theme`)
+- `/th` shortcut added for `/theme`
+- Init commands always use guided menu (no CLI args required)
+- Updated hints to show guided flow descriptions
+- Increased fuzzy match results from 10 to 50
+
+### Added
+- Project summary now shows "scripts:" location
+- Warning before overwriting existing project files (study.toml, R scripts)
+
+### Fixed
+- Tab completion hints now reflect new command structure
+
 ## [0.3.1] - 2025-12-09
 
 ### Added

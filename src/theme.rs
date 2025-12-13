@@ -250,6 +250,16 @@ pub fn overlay0() -> Style {
 }
 
 #[allow(dead_code)]
+pub fn surface0() -> Style {
+    match mode() {
+        THEME_PLAIN => Style::new(),
+        THEME_BASIC => Style::new().fg(basic::OVERLAY0),
+        THEME_LIGHT => Style::new().fg(latte::SURFACE0),
+        _ => Style::new().fg(mocha::SURFACE0),
+    }
+}
+
+#[allow(dead_code)]
 pub fn surface1() -> Style {
     match mode() {
         THEME_PLAIN => Style::new(),
@@ -337,6 +347,14 @@ pub fn color_overlay0() -> Color {
     match mode() {
         THEME_LIGHT => latte::OVERLAY0,
         _ => mocha::OVERLAY0,
+    }
+}
+
+#[allow(dead_code)]
+pub fn color_surface0() -> Color {
+    match mode() {
+        THEME_LIGHT => latte::SURFACE0,
+        _ => mocha::SURFACE0,
     }
 }
 

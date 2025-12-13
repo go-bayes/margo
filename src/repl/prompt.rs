@@ -47,7 +47,7 @@ impl Prompt for MargoPrompt {
                 "{}  {}  {}",
                 theme::overlay0().paint("/help"),
                 theme::overlay0().paint("/home"),
-                theme::overlay0().paint("/q"),
+                theme::overlay0().paint("/quit"),
             ))
         }
     }

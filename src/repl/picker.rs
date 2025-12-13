@@ -254,12 +254,13 @@ pub fn pick_outcomes_for_save(prompt: &str) -> Result<Option<Vec<String>>> {
 }
 
 /// pick from a list of fuzzy-matched variables
+#[allow(dead_code)]
 pub fn pick_from_matches(matches: &[String]) -> Result<Option<String>> {
     let items: Vec<&str> = matches.iter().map(String::as_str).collect();
 
     let result = Select::new("Select variable:", items)
-        .with_page_size(10)
-        .with_help_message("↑↓ navigate, Enter select, Esc cancel")
+        .with_page_size(15)
+        .with_help_message("↑↓ navigate, type to filter, Enter select, Esc cancel")
         .with_render_config(catppuccin_config())
         .prompt_skippable()?;
 

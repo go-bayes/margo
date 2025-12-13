@@ -5,6 +5,7 @@ mod completer;
 mod fuzzy;
 mod highlighter;
 mod hinter;
+pub mod pathpicker;
 mod picker;
 mod prompt;
 mod welcome;

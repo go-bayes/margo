@@ -13,19 +13,30 @@ impl MargoHinter {
     pub fn new() -> Self {
         Self {
             hints: vec![
-                ("init g", "rf <exposure> [outcomes...]"),
-                ("init grf ", "<exposure> [outcomes...] [-t templates]"),
-                ("init grf-", "event <exposure> [-o outcome]"),
+                // init commands (guided menu, no args needed)
+                ("init", " — guided project setup"),
+                ("init ", "grf | grf-event"),
+                ("init g", "rf"),
+                ("init grf", " — causal forest"),
+                ("init grf-", "event"),
+                ("init grf-e", "vent"),
+                ("init grf-ev", "ent"),
+                ("init grf-eve", "nt"),
+                ("init grf-even", "t"),
+                ("init grf-event", " — event study"),
+                // help
                 ("/h", "elp"),
                 ("/he", "lp"),
                 ("/hel", "p"),
+                // config
                 ("/c", "onfig"),
                 ("/co", "nfig"),
                 ("/con", "fig"),
                 ("/conf", "ig"),
                 ("/confi", "g"),
-                ("/config ", "edit"),
-                ("/t", "emplates"),
+                ("/config ", "edit | init"),
+                // templates (/t is shortcut)
+                ("/t ", "outcomes | baselines | edit <name>"),
                 ("/te", "mplates"),
                 ("/tem", "plates"),
                 ("/temp", "lates"),
@@ -34,10 +45,16 @@ impl MargoHinter {
                 ("/templat", "es"),
                 ("/template", "s"),
                 ("/templates ", "edit <name>"),
+                // theme (/th is shortcut)
+                ("/th", "eme"),
+                ("/the", "me"),
+                ("/them", "e"),
+                // vars
                 ("/v", "ars"),
                 ("/va", "rs"),
                 ("/var", "s"),
                 ("/vars ", "<pattern>"),
+                // quit
                 ("/q", "uit"),
                 ("/qu", "it"),
                 ("/qui", "t"),
