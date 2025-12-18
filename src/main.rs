@@ -63,6 +63,18 @@ enum TemplatesAction {
     },
     /// Initialise example templates (creates examples/ directories)
     Init,
+    /// Refresh user templates with bundled defaults (hash-aware)
+    Refresh {
+        /// Overwrite even if user modified a template
+        #[arg(long)]
+        force: bool,
+        /// Write new defaults to templates.new/ instead of overwriting modified files
+        #[arg(long)]
+        sidecar: bool,
+        /// Show actions without writing files
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -125,6 +137,15 @@ fn main() -> Result<()> {
     let cfg = config::Config::load();
     if let Some(theme_name) = &cfg.theme {
         theme::set_theme(theme_name);
+    }
+
+    // ensure defaults exist for first-run users
+    if let Err(e) = config::Config::ensure_templates_initialized() {
+        println!(
+            "{} failed to initialise default templates: {}",
+            Color::Yellow.bold().paint("warning:"),
+            e
+        );
     }
 
     let cli = Cli::parse();
@@ -394,6 +415,75 @@ fn main() -> Result<()> {
                                 "View examples with: {}",
                                 Color::Cyan.paint("margo templates examples")
                             );
+                        }
+                        Err(e) => {
+                            println!(
+                                "{} {}",
+                                Color::Red.bold().paint("error:"),
+                                e
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Some(TemplatesAction::Refresh {
+                    force,
+                    sidecar,
+                    dry_run,
+                }) => {
+                    let opts = config::TemplateRefreshOptions {
+                        force,
+                        sidecar,
+                        dry_run,
+                    };
+                    match config::Config::refresh_templates(opts) {
+                        Ok(report) => {
+                            if dry_run {
+                                println!("{}", Color::Cyan.bold().paint("Dry-run: no files written"));
+                            }
+
+                            if !report.created.is_empty() {
+                                println!("{}", Color::Green.paint("Created:"));
+                                for path in &report.created {
+                                    println!("  - {}", path);
+                                }
+                            }
+
+                            if !report.updated.is_empty() {
+                                println!("{}", Color::Green.paint("Updated:"));
+                                for path in &report.updated {
+                                    println!("  - {}", path);
+                                }
+                            }
+
+                            if !report.sidecar.is_empty() {
+                                println!("{}", Color::Cyan.paint("Sidecar:"));
+                                for path in &report.sidecar {
+                                    println!("  - {}", path);
+                                }
+                            }
+
+                            if !report.skipped_modified.is_empty() {
+                                println!("{}", Color::Yellow.paint("Skipped (modified):"));
+                                for path in &report.skipped_modified {
+                                    println!("  - {}", path);
+                                }
+                            }
+
+                            if !report.unchanged.is_empty() && !dry_run {
+                                println!("{}", Color::Cyan.paint("Unchanged:"));
+                                for path in &report.unchanged {
+                                    println!("  - {}", path);
+                                }
+                            }
+
+                            if report.created.is_empty()
+                                && report.updated.is_empty()
+                                && report.sidecar.is_empty()
+                                && report.skipped_modified.is_empty()
+                            {
+                                println!("{}", Color::Cyan.bold().paint("Templates already up to date"));
+                            }
                         }
                         Err(e) => {
                             println!(

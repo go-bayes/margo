@@ -3,7 +3,9 @@
 // templates from ~/.config/margo/baselines/ and ~/.config/margo/outcomes/
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+use sha2::{Digest, Sha256};
 
 /// user configuration for margo projects
 #[derive(Debug, Clone, Default)]
@@ -26,6 +28,65 @@ pub struct Template {
     #[allow(dead_code)]
     pub name: String,
     pub vars: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TemplateKind {
+    Baselines,
+    Outcomes,
+}
+
+impl TemplateKind {
+    fn as_str(&self) -> &'static str {
+        match self {
+            TemplateKind::Baselines => "baselines",
+            TemplateKind::Outcomes => "outcomes",
+        }
+    }
+
+    fn from_str(kind: &str) -> Option<Self> {
+        match kind {
+            "baselines" => Some(TemplateKind::Baselines),
+            "outcomes" => Some(TemplateKind::Outcomes),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct TemplateAsset {
+    kind: TemplateKind,
+    name: &'static str,
+    content: &'static str,
+}
+
+#[derive(Debug, Clone)]
+struct ManifestEntry {
+    kind: TemplateKind,
+    name: String,
+    hash: String,
+}
+
+#[derive(Debug, Clone)]
+struct TemplateManifest {
+    version: String,
+    entries: Vec<ManifestEntry>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TemplateRefreshReport {
+    pub created: Vec<String>,
+    pub updated: Vec<String>,
+    pub unchanged: Vec<String>,
+    pub skipped_modified: Vec<String>,
+    pub sidecar: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TemplateRefreshOptions {
+    pub force: bool,
+    pub sidecar: bool,
+    pub dry_run: bool,
 }
 
 impl Config {
@@ -138,6 +199,145 @@ use_renv = true
 # use "basic" or "plain" if colours don't display correctly in your terminal
 # theme = "catppuccin"
 "#.to_string()
+    }
+
+    /// ensure baseline/outcome templates exist; if none, write bundled defaults
+    pub fn ensure_templates_initialized() -> Result<Vec<String>, String> {
+        fs::create_dir_all(Self::baselines_dir())
+            .map_err(|e| format!("failed to create baselines dir: {}", e))?;
+        fs::create_dir_all(Self::outcomes_dir())
+            .map_err(|e| format!("failed to create outcomes dir: {}", e))?;
+
+        let mut created = Vec::new();
+        let shipped = shipped_templates();
+
+        for kind in [TemplateKind::Baselines, TemplateKind::Outcomes] {
+            let dir = match kind {
+                TemplateKind::Baselines => Self::baselines_dir(),
+                TemplateKind::Outcomes => Self::outcomes_dir(),
+            };
+
+            if has_user_templates(&dir) {
+                continue;
+            }
+
+            for asset in shipped.iter().filter(|a| a.kind == kind) {
+                let path = dir.join(format!("{}.toml", asset.name));
+                if path.exists() {
+                    continue;
+                }
+                fs::write(&path, asset.content)
+                    .map_err(|e| format!("failed to write {}: {}", path.display(), e))?;
+                created.push(path.display().to_string());
+            }
+        }
+
+        if !created.is_empty() {
+            let manifest_path = templates_manifest_path();
+            save_manifest(&manifest_path, &shipped_manifest())
+                .map_err(|e| format!("failed to write manifest: {}", e))?;
+        }
+
+        Ok(created)
+    }
+
+    /// refresh templates against bundled defaults (hash-aware, non-destructive)
+    pub fn refresh_templates(opts: TemplateRefreshOptions) -> Result<TemplateRefreshReport, String> {
+        fs::create_dir_all(Self::baselines_dir())
+            .map_err(|e| format!("failed to create baselines dir: {}", e))?;
+        fs::create_dir_all(Self::outcomes_dir())
+            .map_err(|e| format!("failed to create outcomes dir: {}", e))?;
+
+        let shipped_manifest = shipped_manifest();
+        let shipped_assets = shipped_templates();
+        let previous_manifest = load_manifest(&templates_manifest_path());
+
+        let mut report = TemplateRefreshReport::default();
+
+        for asset in shipped_assets {
+            let dest_dir = match asset.kind {
+                TemplateKind::Baselines => Self::baselines_dir(),
+                TemplateKind::Outcomes => Self::outcomes_dir(),
+            };
+            let dest_path = dest_dir.join(format!("{}.toml", asset.name));
+            let dest_display = dest_path.display().to_string();
+
+            let new_hash = hash_content(asset.content);
+            let current_content = fs::read_to_string(&dest_path).ok();
+            let current_hash = current_content.as_ref().map(|c| hash_content(c));
+            let old_hash = previous_manifest
+                .as_ref()
+                .and_then(|m| m.find_hash(asset.kind, asset.name));
+
+            // missing file -> create it
+            if !dest_path.exists() {
+                if !opts.dry_run {
+                    fs::write(&dest_path, asset.content)
+                        .map_err(|e| format!("failed to write {}: {}", dest_display, e))?;
+                }
+                report.created.push(dest_display);
+                continue;
+            }
+
+            // force overwrite regardless of modification state
+            if opts.force {
+                if current_hash.as_deref() != Some(&new_hash) && !opts.dry_run {
+                    fs::write(&dest_path, asset.content)
+                        .map_err(|e| format!("failed to write {}: {}", dest_display, e))?;
+                }
+                if current_hash.as_deref() == Some(&new_hash) {
+                    report.unchanged.push(dest_display);
+                } else {
+                    report.updated.push(dest_display);
+                }
+                continue;
+            }
+
+            // if hash matches previous shipped default, treat as unmodified
+            if let (Some(prev_hash), Some(curr_hash)) = (old_hash, current_hash.as_deref()) {
+                if prev_hash == curr_hash {
+                    if curr_hash != new_hash {
+                        if !opts.dry_run {
+                            fs::write(&dest_path, asset.content)
+                                .map_err(|e| format!("failed to write {}: {}", dest_display, e))?;
+                        }
+                        report.updated.push(dest_display);
+                    } else {
+                        report.unchanged.push(dest_display);
+                    }
+                    continue;
+                }
+            }
+
+            // already up to date
+            if current_hash.as_deref() == Some(&new_hash) {
+                report.unchanged.push(dest_display);
+                continue;
+            }
+
+            // modified by user
+            if opts.sidecar {
+                let sidecar_path = templates_sidecar_path(asset.kind).join(format!("{}.toml", asset.name));
+                if !opts.dry_run {
+                    if let Some(parent) = sidecar_path.parent() {
+                        fs::create_dir_all(parent)
+                            .map_err(|e| format!("failed to create sidecar dir: {}", e))?;
+                    }
+                    fs::write(&sidecar_path, asset.content)
+                        .map_err(|e| format!("failed to write sidecar {}: {}", sidecar_path.display(), e))?;
+                }
+                report.sidecar.push(sidecar_path.display().to_string());
+            } else {
+                report.skipped_modified.push(dest_display);
+            }
+        }
+
+        if !opts.dry_run {
+            save_manifest(&templates_manifest_path(), &shipped_manifest)
+                .map_err(|e| format!("failed to write manifest: {}", e))?;
+        }
+
+        Ok(report)
     }
 
     /// load a baselines template by name
@@ -503,6 +703,145 @@ vars = [
 // keep Defaults as alias for backwards compatibility
 pub type Defaults = Config;
 
+fn shipped_templates() -> Vec<TemplateAsset> {
+    vec![
+        TemplateAsset {
+            kind: TemplateKind::Baselines,
+            name: "default",
+            content: Config::bundled_baseline_default(),
+        },
+        TemplateAsset {
+            kind: TemplateKind::Baselines,
+            name: "minimal",
+            content: Config::bundled_baseline_minimal(),
+        },
+        TemplateAsset {
+            kind: TemplateKind::Baselines,
+            name: "extended",
+            content: Config::bundled_baseline_extended(),
+        },
+        TemplateAsset {
+            kind: TemplateKind::Outcomes,
+            name: "wellbeing",
+            content: Config::bundled_outcomes_wellbeing(),
+        },
+        TemplateAsset {
+            kind: TemplateKind::Outcomes,
+            name: "health",
+            content: Config::bundled_outcomes_health(),
+        },
+    ]
+}
+
+fn shipped_manifest() -> TemplateManifest {
+    let entries = shipped_templates()
+        .iter()
+        .map(|asset| ManifestEntry {
+            kind: asset.kind,
+            name: asset.name.to_string(),
+            hash: hash_content(asset.content),
+        })
+        .collect();
+
+    TemplateManifest {
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        entries,
+    }
+}
+
+fn hash_content(content: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(content.as_bytes());
+    let result = hasher.finalize();
+    format!("{:x}", result)
+}
+
+fn has_user_templates(dir: &Path) -> bool {
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                continue;
+            }
+            if path.extension().map(|e| e == "toml").unwrap_or(false) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn templates_manifest_path() -> PathBuf {
+    Config::config_dir().join("templates.manifest")
+}
+
+fn templates_sidecar_path(kind: TemplateKind) -> PathBuf {
+    let base = Config::config_dir().join("templates.new");
+    match kind {
+        TemplateKind::Baselines => base.join("baselines"),
+        TemplateKind::Outcomes => base.join("outcomes"),
+    }
+}
+
+impl TemplateManifest {
+    fn find_hash(&self, kind: TemplateKind, name: &str) -> Option<&str> {
+        self.entries
+            .iter()
+            .find(|e| e.kind == kind && e.name == name)
+            .map(|e| e.hash.as_str())
+    }
+}
+
+fn save_manifest(path: &Path, manifest: &TemplateManifest) -> std::io::Result<()> {
+    let mut content = format!("version={}\n", manifest.version);
+    for entry in &manifest.entries {
+        content.push_str(&format!(
+            "{}:{}:{}\n",
+            entry.kind.as_str(),
+            entry.name,
+            entry.hash
+        ));
+    }
+    fs::write(path, content)
+}
+
+fn load_manifest(path: &Path) -> Option<TemplateManifest> {
+    let content = fs::read_to_string(path).ok()?;
+    let mut version = String::new();
+    let mut entries = Vec::new();
+
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        if let Some(rest) = line.strip_prefix("version=") {
+            version = rest.to_string();
+            continue;
+        }
+
+        let mut parts = line.splitn(3, ':');
+        let kind_str = parts.next()?;
+        let name = parts.next()?;
+        let hash = parts.next()?;
+
+        let kind = TemplateKind::from_str(kind_str)?;
+
+        entries.push(ManifestEntry {
+            kind,
+            name: name.to_string(),
+            hash: hash.to_string(),
+        });
+    }
+
+    if version.is_empty() {
+        return None;
+    }
+
+    Some(TemplateManifest { version, entries })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -550,5 +889,18 @@ vars = [
 "#;
         let vars = Config::parse_vars(content);
         assert_eq!(vars, vec!["age", "male", "eth_cat"]);
+    }
+
+    #[test]
+    fn test_manifest_roundtrip() {
+        let manifest = shipped_manifest();
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("templates.manifest");
+
+        save_manifest(&path, &manifest).expect("save manifest");
+        let loaded = load_manifest(&path).expect("load manifest");
+
+        assert_eq!(manifest.version, loaded.version);
+        assert_eq!(manifest.entries.len(), loaded.entries.len());
     }
 }

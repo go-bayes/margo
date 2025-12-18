@@ -311,15 +311,7 @@ fn format_outcomes_list(outcomes: &[String]) -> String {
 }
 
 fn chrono_year() -> String {
-    // simple year extraction without chrono dependency
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    // approximate year calculation (good enough for project naming)
-    let years_since_1970 = secs / 31_536_000; // seconds per year
-    format!("{}", 1970 + years_since_1970)
+    time::OffsetDateTime::now_utc().year().to_string()
 }
 
 fn handle_init_grf_event() -> Result<()> {

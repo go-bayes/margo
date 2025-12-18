@@ -1,6 +1,6 @@
 [package]
 name = "margo"
-version = "0.3.3"
+version = "0.3.4"
 edition = "2024"
 authors = ["Joseph Bulbulia"]
 description = "CLI tool for scaffolding margot causal inference projects"
@@ -28,6 +28,12 @@ nu-ansi-term = "0.50"
 
 # terminal control
 crossterm = "0.28"
+
+# hashing for template manifests
+sha2 = "0.10"
+
+# time handling
+time = "0.3"
 
 # fuzzy matching
 nucleo = "0.5"
