@@ -5,6 +5,14 @@ Notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.3.5] - 2025-12-27
+
+### Changed
+- GRF templates now default to rv setup (`00-setup.R`, README instructions, and `.gitignore`)
+- Config option renamed to `use_rv` (still accepts `use_renv`)
+
 ## [0.3.4] - 2025-12-14
 
 ### Added
@@ -20,8 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `margo templates` command with subcommands: `list`, `examples`, `copy`, `init`
 - Bundled example templates in `baselines/examples/` and `outcomes/examples/`
-- `00-setup.R` script with renv::init() for reproducible R environments
-- `use_renv` config option (defaults to true) to control renv integration
+- `00-setup.R` script with rv init/sync for reproducible R environments
+- `use_rv` config option (defaults to true) to control rv integration
 
 ### Changed
 - Removed `who_mode` option (users should define variables in their own templates)

@@ -545,8 +545,8 @@ fn cmd_config(args: &[&str]) -> Result<()> {
                 config.baselines.as_deref().unwrap_or("default"),
             );
             print_config_value(
-                "use_renv",
-                if config.use_renv.unwrap_or(true) { "true" } else { "false" },
+                "use_rv",
+                if config.use_rv.unwrap_or(true) { "true" } else { "false" },
             );
             println!();
 

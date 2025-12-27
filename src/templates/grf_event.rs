@@ -340,10 +340,8 @@ fn gitignore() -> String {
 *.png
 *.html
 
-# renv
-renv/library/
-renv/staging/
-renv/python/
+# rv
+rv/
 
 # IDE
 .Rproj.user/

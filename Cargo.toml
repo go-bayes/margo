@@ -1,6 +1,6 @@
 [package]
 name = "margo"
-version = "0.3.4"
+version = "0.3.5"
 edition = "2024"
 authors = ["Joseph Bulbulia"]
 description = "CLI tool for scaffolding margot causal inference projects"

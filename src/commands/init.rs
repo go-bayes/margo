@@ -102,8 +102,8 @@ pub fn grf_from_config(
     fs::create_dir_all(&push_mods_path)
         .with_context(|| format!("failed to create output directory '{}'", push_mods_path))?;
 
-    // check renv setting (default to true)
-    let use_renv = config.use_renv.unwrap_or(true);
+    // check rv setting (default to true)
+    let use_rv = config.use_rv.unwrap_or(true);
 
     println!(
         "{} GRF project '{}'",
@@ -119,7 +119,7 @@ pub fn grf_from_config(
         exposure,
         &baseline_vars,
         &outcome_vars,
-        use_renv,
+        use_rv,
     );
 
     for (filename, content) in files {

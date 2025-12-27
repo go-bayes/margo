@@ -15,7 +15,7 @@ pub struct Config {
     pub push_mods: Option<String>,   // base directory for outputs
     // defaults
     pub baselines: Option<String>,   // default baseline template name
-    pub use_renv: Option<bool>,      // whether to include renv::init() in generated scripts
+    pub use_rv: Option<bool>,        // whether to include rv setup in generated scripts
     // editor
     pub editor: Option<String>,      // editor for /config edit, /templates edit
     // theme
@@ -157,7 +157,7 @@ impl Config {
                     "pull_data" => config.pull_data = Some(value.to_string()),
                     "push_mods" => config.push_mods = Some(value.to_string()),
                     "baselines" => config.baselines = Some(value.to_string()),
-                    "use_renv" => config.use_renv = Some(value == "true"),
+                    "use_rv" | "use_renv" => config.use_rv = Some(value == "true"),
                     "editor" | "command" => config.editor = Some(value.to_string()),
                     "theme" => config.theme = Some(value.to_string()),
                     _ => {}
@@ -185,9 +185,9 @@ impl Config {
 # default baseline template (from ~/.config/margo/baselines/)
 # baselines = "default"
 
-# include renv::init() in generated R scripts (recommended for reproducibility)
+# include rv setup in generated R scripts (recommended for reproducibility)
 # set to false if you manage R environments differently
-use_renv = true
+use_rv = true
 
 [editor]
 # editor for /config edit, /templates edit
@@ -855,14 +855,25 @@ push_mods = "/Users/joseph/outputs"
 
 [defaults]
 baselines = "default"
-use_renv = true
+use_rv = true
 "#;
 
         let config = Config::parse(content);
         assert_eq!(config.pull_data, Some("/Users/joseph/data/nzavs".to_string()));
         assert_eq!(config.push_mods, Some("/Users/joseph/outputs".to_string()));
         assert_eq!(config.baselines, Some("default".to_string()));
-        assert_eq!(config.use_renv, Some(true));
+        assert_eq!(config.use_rv, Some(true));
+    }
+
+    #[test]
+    fn test_parse_config_accepts_use_renv() {
+        let content = r#"
+[defaults]
+use_renv = false
+"#;
+
+        let config = Config::parse(content);
+        assert_eq!(config.use_rv, Some(false));
     }
 
     #[test]

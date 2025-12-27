@@ -168,7 +168,7 @@ fn test_grf_study_toml_has_standard_baseline_vars() {
 }
 
 #[test]
-fn test_grf_creates_setup_script_with_renv() {
+fn test_grf_creates_setup_script_with_rv() {
     let tmp = temp_dir();
     setup_config(&tmp);
 
@@ -179,14 +179,14 @@ fn test_grf_creates_setup_script_with_renv() {
         .output()
         .expect("failed to execute margo");
 
-    // check that 00-setup.R was created with renv content
+    // check that 00-setup.R was created with rv content
     let setup_path = tmp.path().join("00-setup.R");
     assert!(setup_path.exists(), "00-setup.R should exist");
 
     let setup_content = fs::read_to_string(&setup_path).expect("failed to read 00-setup.R");
     assert!(
-        setup_content.contains("renv::init()"),
-        "00-setup.R should contain renv::init() by default"
+        setup_content.contains("run_rv(c(\"sync\"))"),
+        "00-setup.R should contain rv sync by default"
     );
 }
 
