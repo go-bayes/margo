@@ -14,7 +14,7 @@ cargo install --git https://github.com/go-bayes/margo
 
 ### Installing Rust
 
-If you don't have Rust, install it first:
+If you don't have Rust, install it:
 
 ```bash
 # macOS / Linux
