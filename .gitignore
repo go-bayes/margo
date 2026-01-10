@@ -1,2 +1,27 @@
-/target
-CLAUDE.md
+# data files
+*.qs
+*.rds
+*.csv
+*.xlsx
+
+# R artifacts
+.Rhistory
+.Rdata
+.Ruserdata
+.RData
+
+# output files
+*.pdf
+*.png
+*.html
+
+# rv
+rv/
+
+# IDE
+.Rproj.user/
+*.Rproj
+
+# OS
+.DS_Store
+Thumbs.db

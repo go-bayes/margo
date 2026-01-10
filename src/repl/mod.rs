@@ -108,8 +108,20 @@ fn create_editor() -> Result<Reedline> {
             ReedlineEvent::MenuNext,
         ]),
     );
+    insert_keybindings.add_binding(
+        KeyModifiers::NONE,
+        KeyCode::Esc,
+        ReedlineEvent::ExecuteHostCommand("/home".to_string()),
+    );
 
-    let vi = Vi::new(insert_keybindings, default_vi_normal_keybindings());
+    let mut normal_keybindings = default_vi_normal_keybindings();
+    normal_keybindings.add_binding(
+        KeyModifiers::NONE,
+        KeyCode::Esc,
+        ReedlineEvent::ExecuteHostCommand("/home".to_string()),
+    );
+
+    let vi = Vi::new(insert_keybindings, normal_keybindings);
 
     let editor = Reedline::create()
         .with_history(history)

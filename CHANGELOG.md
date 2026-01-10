@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-01-12
+
+### Added
+- Version line under the welcome tagline
+- Template review actions to view, edit, and save as a new template during init
+- Esc binding to return home in the REPL
+
+### Changed
+- Project review now includes exposure between baseline and outcomes
+- Init summary output path matches the actual project name
+- `/templates edit` opens a picker when no name is provided
+
+### Fixed
+- Empty `push_mods` config falls back to `./outputs` instead of writing to `/`
+- Edit-template confirmation no longer triggers project creation
+
 ## [0.3.6] - 2026-01-11
 
 ### Fixed

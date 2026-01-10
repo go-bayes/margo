@@ -143,6 +143,15 @@ impl Config {
     fn parse(content: &str) -> Self {
         let mut config = Self::default();
 
+        fn non_empty(value: &str) -> Option<String> {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        }
+
         for line in content.lines() {
             let line = line.trim();
             if line.starts_with('#') || line.is_empty() || line.starts_with('[') {
@@ -151,15 +160,22 @@ impl Config {
 
             if let Some((key, value)) = line.split_once('=') {
                 let key = key.trim();
-                let value = value.trim().trim_matches('"');
+                let value = value.trim().trim_matches('"').trim_matches('\'');
+                let value = value.trim();
 
                 match key {
-                    "pull_data" => config.pull_data = Some(value.to_string()),
-                    "push_mods" => config.push_mods = Some(value.to_string()),
-                    "baselines" => config.baselines = Some(value.to_string()),
-                    "use_rv" | "use_renv" => config.use_rv = Some(value == "true"),
-                    "editor" | "command" => config.editor = Some(value.to_string()),
-                    "theme" => config.theme = Some(value.to_string()),
+                    "pull_data" => config.pull_data = non_empty(value),
+                    "push_mods" => config.push_mods = non_empty(value),
+                    "baselines" => config.baselines = non_empty(value),
+                    "use_rv" | "use_renv" => {
+                        if value == "true" {
+                            config.use_rv = Some(true);
+                        } else if value == "false" {
+                            config.use_rv = Some(false);
+                        }
+                    }
+                    "editor" | "command" => config.editor = non_empty(value),
+                    "theme" => config.theme = non_empty(value),
                     _ => {}
                 }
             }

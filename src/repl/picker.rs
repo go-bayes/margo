@@ -110,20 +110,27 @@ pub fn pick_variable(prompt: &str) -> Result<Option<String>> {
     Ok(result.map(|s| s.to_string()))
 }
 
-/// pick a baseline template
-/// returns None if cancelled (Esc pressed)
-pub fn pick_baseline(available: &[String]) -> Result<Option<String>> {
+/// baseline template picker result
+pub enum BaselineSelection {
+    Selected(String),
+    View,
+    Cancelled,
+}
+
+/// pick a baseline template (with view option)
+pub fn pick_baseline(available: &[String]) -> Result<BaselineSelection> {
     if available.is_empty() {
         // no templates configured, use default without prompting
-        return Ok(Some("default".to_string()));
+        return Ok(BaselineSelection::Selected("default".to_string()));
     }
 
-    let mut options: Vec<&str> = available.iter().map(|s| s.as_str()).collect();
+    let mut options: Vec<String> = available.to_vec();
     // ensure "default" is first if it exists
-    if let Some(pos) = options.iter().position(|&s| s == "default") {
+    if let Some(pos) = options.iter().position(|s| s == "default") {
         options.remove(pos);
-        options.insert(0, "default");
+        options.insert(0, "default".to_string());
     }
+    options.push("view templates — preview variables".to_string());
 
     let result = Select::new("Select baseline template:", options)
         .with_vim_mode(true)
@@ -132,7 +139,11 @@ pub fn pick_baseline(available: &[String]) -> Result<Option<String>> {
         .with_render_config(catppuccin_config())
         .prompt_skippable()?;
 
-    Ok(result.map(|s| s.to_string()))
+    match result {
+        Some(choice) if choice.starts_with("view templates") => Ok(BaselineSelection::View),
+        Some(choice) => Ok(BaselineSelection::Selected(choice)),
+        None => Ok(BaselineSelection::Cancelled),
+    }
 }
 
 /// pick model type (grf, grf-event, lmtp)
@@ -169,7 +180,7 @@ pub fn edit_template(name: &str, current_vars: &[String]) -> Result<Option<Vec<S
     let result = MultiSelect::new(&prompt, variables)
         .with_page_size(15)
         .with_default(&defaults)
-        .with_help_message("↑↓ move, Space toggle, type to filter, Enter done")
+        .with_help_message("↑↓ move, Space toggle, type to filter, Enter done, Esc cancel")
         .with_render_config(catppuccin_config())
         .prompt_skippable()?;
 
@@ -177,7 +188,7 @@ pub fn edit_template(name: &str, current_vars: &[String]) -> Result<Option<Vec<S
         Some(selected) => {
             let vars: Vec<String> = selected.into_iter().map(|s| s.to_string()).collect();
             // show confirmation
-            if confirm_selection(&vars)? {
+            if confirm_selection(&vars, "Use these variables?")? {
                 Ok(Some(vars))
             } else {
                 Ok(None)
@@ -188,7 +199,7 @@ pub fn edit_template(name: &str, current_vars: &[String]) -> Result<Option<Vec<S
 }
 
 /// confirm variable selection
-fn confirm_selection(vars: &[String]) -> Result<bool> {
+fn confirm_selection(vars: &[String], prompt: &str) -> Result<bool> {
     use crate::theme;
 
     println!();
@@ -210,7 +221,10 @@ fn confirm_selection(vars: &[String]) -> Result<bool> {
     }
     println!();
 
-    confirm_create()
+    let result = inquire::Confirm::new(prompt)
+        .with_default(true)
+        .prompt_skippable()?;
+    Ok(result.unwrap_or(false))
 }
 
 /// browse variables interactively (view-only, scrollable)

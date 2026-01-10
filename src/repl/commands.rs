@@ -81,71 +81,96 @@ fn handle_init_grf() -> Result<()> {
     println!();
 
     // step 1: baseline template
-    let (baseline, baseline_vars_override) = {
+    let (baseline, baseline_vars_override) = loop {
         let available = Config::list_baselines();
         if available.is_empty() {
             println!(
                 "{}",
                 theme::subtext0().paint("no baseline templates found, using default")
             );
-            ("default".to_string(), None)
-        } else {
-            // offer choice: use template as-is, modify, or pick custom
-            let methods = vec![
-                "template     — use saved baseline template",
-                "modify       — edit template variables",
-                "custom       — pick individual variables",
-            ];
+            break ("default".to_string(), None);
+        }
 
-            let method = inquire::Select::new("Select baseline from:", methods)
-                .with_help_message("↑↓ navigate, Enter select, Esc cancel")
-                .prompt_skippable()?;
+        // offer choice: use template as-is, modify, pick custom, or preview
+        let methods = vec![
+            "template     — use saved baseline template",
+            "modify       — edit template variables",
+            "custom       — pick individual variables",
+            "view         — preview baseline templates",
+        ];
 
-            match method {
-                Some(m) if m.starts_with("template") => {
+        let method = inquire::Select::new("Select baseline from:", methods)
+            .with_help_message("↑↓ navigate, Enter select, Esc cancel")
+            .prompt_skippable()?;
+
+        match method {
+            Some(m) if m.starts_with("template") => {
+                let selected = loop {
                     match picker::pick_baseline(&available)? {
-                        Some(selected) => (selected, None),
-                        None => {
-                            println!("{}", theme::yellow().paint("cancelled"));
-                            return Ok(());
+                        picker::BaselineSelection::Selected(selected) => break Some(selected),
+                        picker::BaselineSelection::View => {
+                            if let Some(selected) = view_baseline_picker()? {
+                                break Some(selected);
+                            }
                         }
+                        picker::BaselineSelection::Cancelled => break None,
                     }
+                };
+                if let Some(selected) = selected {
+                    break (selected, None);
                 }
-                Some(m) if m.starts_with("modify") => {
-                    // pick template then edit its variables
-                    let tpl_name = match picker::pick_baseline(&available)? {
-                        Some(selected) => selected,
-                        None => {
-                            println!("{}", theme::yellow().paint("cancelled"));
-                            return Ok(());
+                println!("{}", theme::yellow().paint("cancelled"));
+                return Ok(());
+            }
+            Some(m) if m.starts_with("modify") => {
+                // pick template then edit its variables
+                let tpl_name = loop {
+                    match picker::pick_baseline(&available)? {
+                        picker::BaselineSelection::Selected(selected) => break Some(selected),
+                        picker::BaselineSelection::View => {
+                            if let Some(selected) = view_baseline_picker()? {
+                                break Some(selected);
+                            }
                         }
-                    };
-                    // load template vars and let user modify
-                    let current_vars = Config::load_baselines(&tpl_name)
-                        .map(|t| t.vars)
-                        .unwrap_or_default();
-                    match picker::edit_template(&tpl_name, &current_vars)? {
-                        Some(vars) => (tpl_name, Some(vars)),
-                        None => {
-                            println!("{}", theme::yellow().paint("cancelled"));
-                            return Ok(());
-                        }
+                        picker::BaselineSelection::Cancelled => break None,
                     }
-                }
-                Some(m) if m.starts_with("custom") => {
-                    // pick individual variables
-                    match picker::pick_outcomes()? {
-                        Some(vars) if !vars.is_empty() => ("custom".to_string(), Some(vars)),
-                        _ => {
-                            println!("{}", theme::yellow().paint("cancelled"));
-                            return Ok(());
-                        }
-                    }
-                }
-                _ => {
+                };
+                let Some(tpl_name) = tpl_name else {
                     println!("{}", theme::yellow().paint("cancelled"));
                     return Ok(());
+                };
+                // load template vars and let user modify
+                let current_vars = Config::load_baselines(&tpl_name)
+                    .map(|t| t.vars)
+                    .unwrap_or_default();
+                match picker::edit_template(&tpl_name, &current_vars)? {
+                    Some(vars) => break (tpl_name, Some(vars)),
+                    None => {
+                        println!("{}", theme::yellow().paint("cancelled"));
+                        continue;
+                    }
                 }
+            }
+            Some(m) if m.starts_with("custom") => {
+                // pick individual variables
+                match picker::pick_outcomes()? {
+                    Some(vars) if !vars.is_empty() => {
+                        break ("custom".to_string(), Some(vars));
+                    }
+                    _ => {
+                        println!("{}", theme::yellow().paint("cancelled"));
+                        return Ok(());
+                    }
+                }
+            }
+            Some(m) if m.starts_with("view") => {
+                if let Some(selected) = view_baseline_picker()? {
+                    break (selected, None);
+                }
+            }
+            _ => {
+                println!("{}", theme::yellow().paint("cancelled"));
+                return Ok(());
             }
         }
     };
@@ -175,40 +200,82 @@ fn handle_init_grf() -> Result<()> {
             }
         } else {
             // offer method choice
-            let methods = vec![
-                "templates    — use saved outcome templates",
-                "variables    — pick individual variables",
-            ];
+            loop {
+                let methods = vec![
+                    "templates    — use saved outcome templates",
+                    "modify       — edit template variables",
+                    "variables    — pick individual variables",
+                    "view         — preview outcome templates",
+                ];
 
-            let method = inquire::Select::new("Select outcomes from:", methods)
-                .with_help_message("↑↓ navigate, Enter select, Esc cancel")
-                .prompt_skippable()?;
+                let method = inquire::Select::new("Select outcomes from:", methods)
+                    .with_help_message("↑↓ navigate, Enter select, Esc cancel")
+                    .prompt_skippable()?;
 
-            match method {
-                Some(m) if m.starts_with("templates") => {
-                    // pick from templates
-                    match picker::browse_templates("Select outcome template:", &available_templates)? {
-                        Some(tpl_name) => {
-                            templates = Some(vec![tpl_name]);
-                        }
-                        None => {
-                            println!("{}", theme::yellow().paint("cancelled"));
-                            return Ok(());
+                match method {
+                    Some(m) if m.starts_with("templates") => {
+                        // pick from templates
+                        match picker::browse_templates(
+                            "Select outcome template:",
+                            &available_templates,
+                        )? {
+                            Some(tpl_name) => {
+                                templates = Some(vec![tpl_name]);
+                                break;
+                            }
+                            None => {
+                                println!("{}", theme::yellow().paint("cancelled"));
+                                return Ok(());
+                            }
                         }
                     }
-                }
-                Some(m) if m.starts_with("variables") => {
-                    match picker::pick_outcomes()? {
-                        Some(selected) if !selected.is_empty() => outcomes = selected,
-                        _ => {
-                            println!("{}", theme::yellow().paint("cancelled"));
-                            return Ok(());
+                    Some(m) if m.starts_with("modify") => {
+                        let tpl_name = match picker::browse_templates(
+                            "Select outcome template to edit:",
+                            &available_templates,
+                        )? {
+                            Some(selected) => selected,
+                            None => {
+                                println!("{}", theme::yellow().paint("cancelled"));
+                                return Ok(());
+                            }
+                        };
+                        let current_vars = Config::load_outcomes(&tpl_name)
+                            .map(|t| t.vars)
+                            .unwrap_or_default();
+                        match picker::edit_template(&tpl_name, &current_vars)? {
+                            Some(vars) => {
+                                outcomes = vars;
+                                break;
+                            }
+                            None => {
+                                println!("{}", theme::yellow().paint("cancelled"));
+                                continue;
+                            }
                         }
                     }
-                }
-                _ => {
-                    println!("{}", theme::yellow().paint("cancelled"));
-                    return Ok(());
+                    Some(m) if m.starts_with("variables") => {
+                        match picker::pick_outcomes()? {
+                            Some(selected) if !selected.is_empty() => {
+                                outcomes = selected;
+                                break;
+                            }
+                            _ => {
+                                println!("{}", theme::yellow().paint("cancelled"));
+                                return Ok(());
+                            }
+                        }
+                    }
+                    Some(m) if m.starts_with("view") => {
+                        if let Some(selected) = view_outcome_picker()? {
+                            templates = Some(vec![selected]);
+                            break;
+                        }
+                    }
+                    _ => {
+                        println!("{}", theme::yellow().paint("cancelled"));
+                        return Ok(());
+                    }
                 }
             }
         }
@@ -258,11 +325,14 @@ fn handle_init_grf() -> Result<()> {
 
     // show output directory (model outputs go here)
     let config = Config::load();
-    let project_name = name.clone().unwrap_or_else(|| {
-        let year = chrono_year();
-        format!("{}-{}", year, exposure.replace('_', "-"))
-    });
-    let push_mods = config.push_mods.unwrap_or_else(|| format!("{}/outputs", cwd));
+    let project_name = grf_project_name(
+        &exposure,
+        &outcomes,
+        templates.as_deref(),
+        name.as_deref(),
+    );
+    let push_mods = resolve_push_mods_base(&config, &cwd);
+    let output_path = format!("{}/{}", push_mods, project_name);
     println!(
         "  {} {}/{}",
         theme::subtext0().paint("output:"),
@@ -273,6 +343,20 @@ fn handle_init_grf() -> Result<()> {
 
     // check for existing project files
     if !check_existing_files()? {
+        return Ok(());
+    }
+
+    // optional review of selections before creating
+    if !maybe_review_grf_details(
+        &exposure,
+        &baseline,
+        baseline_vars_override.as_deref(),
+        &outcomes,
+        templates.as_deref(),
+        &output_path,
+        &cwd,
+    )? {
+        println!("{}", theme::yellow().paint("cancelled"));
         return Ok(());
     }
 
@@ -310,8 +394,206 @@ fn format_outcomes_list(outcomes: &[String]) -> String {
     }
 }
 
-fn chrono_year() -> String {
-    time::OffsetDateTime::now_utc().year().to_string()
+fn grf_project_name(
+    exposure: &str,
+    outcomes: &[String],
+    templates: Option<&[String]>,
+    custom_name: Option<&str>,
+) -> String {
+    if let Some(name) = custom_name {
+        return name.to_string();
+    }
+    if !outcomes.is_empty() {
+        return format!("{}-{}", exposure, outcomes[0]);
+    }
+    if let Some(tpls) = templates {
+        if !tpls.is_empty() {
+            return format!("{}-{}", exposure, tpls.join("-"));
+        }
+    }
+    exposure.to_string()
+}
+
+fn grf_event_project_name(exposure: &str, custom_name: Option<&str>) -> String {
+    custom_name
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| format!("{}-event-study", exposure))
+}
+
+fn resolve_push_mods_base(config: &Config, cwd: &str) -> String {
+    config
+        .push_mods
+        .clone()
+        .filter(|p| !p.trim().is_empty())
+        .unwrap_or_else(|| format!("{}/outputs", cwd))
+}
+
+fn maybe_review_grf_details(
+    exposure: &str,
+    baseline: &str,
+    baseline_vars_override: Option<&[String]>,
+    outcomes: &[String],
+    templates: Option<&[String]>,
+    output_path: &str,
+    scripts_path: &str,
+) -> Result<bool> {
+    let review = inquire::Confirm::new("Review template contents?")
+        .with_default(false)
+        .prompt_skippable()?;
+
+    match review {
+        Some(true) => {}
+        Some(false) => return Ok(true),
+        None => return Ok(false),
+    }
+
+    println!();
+    println!("  {}", theme::peach().paint("Project Review"));
+    println!(
+        "  {}",
+        theme::overlay0().paint("─────────────────────────────────────────────")
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("scripts:"),
+        theme::text().paint(shorten_path(scripts_path))
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("output:"),
+        theme::text().paint(shorten_path(output_path))
+    );
+    println!();
+
+    if let Some(vars) = baseline_vars_override {
+        let label = if baseline == "custom" {
+            "Baseline variables (custom)".to_string()
+        } else {
+            format!("Baseline variables (override: {})", baseline)
+        };
+        print_vars_block(&label, vars);
+    } else if let Some(tpl) = Config::load_baselines(baseline) {
+        print_vars_block(&format!("Baseline template: {}", baseline), &tpl.vars);
+    } else {
+        println!(
+            "  {} baseline template '{}' not found",
+            theme::yellow().paint("warning:"),
+            theme::text().paint(baseline)
+        );
+        println!();
+    }
+
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("exposure:"),
+        theme::text().paint(exposure)
+    );
+    println!();
+
+    if !outcomes.is_empty() {
+        print_vars_block("Outcome variables", outcomes);
+    }
+
+    if let Some(tpls) = templates {
+        for name in tpls {
+            if let Some(tpl) = Config::load_outcomes(name) {
+                print_vars_block(&format!("Outcome template: {}", name), &tpl.vars);
+            } else {
+                println!(
+                    "  {} outcome template '{}' not found",
+                    theme::yellow().paint("warning:"),
+                    theme::text().paint(name)
+                );
+                println!();
+            }
+        }
+    }
+
+    Ok(true)
+}
+
+fn maybe_review_grf_event_details(
+    baseline: &str,
+    outcome: Option<&str>,
+    output_path: &str,
+    scripts_path: &str,
+) -> Result<bool> {
+    let review = inquire::Confirm::new("Review template contents?")
+        .with_default(false)
+        .prompt_skippable()?;
+
+    match review {
+        Some(true) => {}
+        Some(false) => return Ok(true),
+        None => return Ok(false),
+    }
+
+    println!();
+    println!("  {}", theme::peach().paint("Project Review"));
+    println!(
+        "  {}",
+        theme::overlay0().paint("─────────────────────────────────────────────")
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("scripts:"),
+        theme::text().paint(shorten_path(scripts_path))
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("output:"),
+        theme::text().paint(shorten_path(output_path))
+    );
+    if let Some(value) = outcome {
+        println!(
+            "  {} {}",
+            theme::subtext0().paint("outcome:"),
+            theme::text().paint(value)
+        );
+    }
+    println!();
+
+    if let Some(tpl) = Config::load_baselines(baseline) {
+        print_vars_block(&format!("Baseline template: {}", baseline), &tpl.vars);
+    } else {
+        println!(
+            "  {} baseline template '{}' not found",
+            theme::yellow().paint("warning:"),
+            theme::text().paint(baseline)
+        );
+        println!();
+    }
+
+    Ok(true)
+}
+
+fn print_vars_block(title: &str, vars: &[String]) {
+    println!(
+        "  {} ({})",
+        theme::sapphire().paint(title),
+        theme::text().paint(format!("{} vars", vars.len()))
+    );
+    println!(
+        "  {}",
+        theme::overlay0().paint("─────────────────────────────────────────────")
+    );
+
+    if vars.is_empty() {
+        println!(
+            "    {} {}",
+            theme::overlay0().paint("•"),
+            theme::overlay0().paint("(none)")
+        );
+    } else {
+        for var in vars {
+            println!(
+                "    {} {}",
+                theme::overlay0().paint("•"),
+                theme::teal().paint(var)
+            );
+        }
+    }
+    println!();
 }
 
 fn handle_init_grf_event() -> Result<()> {
@@ -319,21 +601,52 @@ fn handle_init_grf_event() -> Result<()> {
     println!();
 
     // step 1: baseline template
-    let baseline = {
+    let baseline = loop {
         let available = Config::list_baselines();
         if available.is_empty() {
             println!(
                 "{}",
                 theme::subtext0().paint("no baseline templates found, using default")
             );
-            "default".to_string()
-        } else {
-            match picker::pick_baseline(&available)? {
-                Some(selected) => selected,
-                None => {
-                    println!("{}", theme::yellow().paint("cancelled"));
-                    return Ok(());
+            break "default".to_string();
+        }
+
+        let methods = vec![
+            "template     — use saved baseline template",
+            "view         — preview baseline templates",
+        ];
+
+        let method = inquire::Select::new("Select baseline from:", methods)
+            .with_help_message("↑↓ navigate, Enter select, Esc cancel")
+            .prompt_skippable()?;
+
+        match method {
+            Some(m) if m.starts_with("template") => {
+                let selected = loop {
+                    match picker::pick_baseline(&available)? {
+                        picker::BaselineSelection::Selected(selected) => break Some(selected),
+                        picker::BaselineSelection::View => {
+                            if let Some(selected) = view_baseline_picker()? {
+                                break Some(selected);
+                            }
+                        }
+                        picker::BaselineSelection::Cancelled => break None,
+                    }
+                };
+                if let Some(selected) = selected {
+                    break selected;
                 }
+                println!("{}", theme::yellow().paint("cancelled"));
+                return Ok(());
+            }
+            Some(m) if m.starts_with("view") => {
+                if let Some(selected) = view_baseline_picker()? {
+                    break selected;
+                }
+            }
+            _ => {
+                println!("{}", theme::yellow().paint("cancelled"));
+                return Ok(());
             }
         }
     };
@@ -414,11 +727,9 @@ fn handle_init_grf_event() -> Result<()> {
 
     // show output directory
     let config = Config::load();
-    let project_name = name.clone().unwrap_or_else(|| {
-        let year = chrono_year();
-        format!("{}-{}-event", year, exposure.replace('_', "-"))
-    });
-    let push_mods = config.push_mods.unwrap_or_else(|| format!("{}/outputs", cwd));
+    let project_name = grf_event_project_name(&exposure, name.as_deref());
+    let push_mods = resolve_push_mods_base(&config, &cwd);
+    let output_path = format!("{}/{}", push_mods, project_name);
     println!(
         "  {} {}/{}",
         theme::subtext0().paint("output:"),
@@ -429,6 +740,17 @@ fn handle_init_grf_event() -> Result<()> {
 
     // check for existing project files
     if !check_existing_files()? {
+        return Ok(());
+    }
+
+    // optional review of selections before creating
+    if !maybe_review_grf_event_details(
+        &baseline,
+        outcome.as_deref(),
+        &output_path,
+        &cwd,
+    )? {
+        println!("{}", theme::yellow().paint("cancelled"));
         return Ok(());
     }
 
@@ -467,7 +789,7 @@ fn cmd_help() -> Result<()> {
     print_help_item("/templates, /t", "list all templates");
     print_help_item("/t outcomes", "list outcome templates");
     print_help_item("/t baselines", "list baseline templates");
-    print_help_item("/t edit <name>", "interactive variable picker");
+    print_help_item("/t edit [name]", "interactive template editor");
     print_help_item("/t open <name>", "open template in $EDITOR");
     print_help_item("/t new <type> <name>", "create new template");
     print_help_item("/vars [pattern]", "fuzzy search variables");
@@ -488,8 +810,8 @@ fn cmd_help() -> Result<()> {
     print_help_item("init grf-event", "create grf event study");
     println!();
 
-    println!("  {}", theme::subtext1().paint("Keybindings (vi mode)"));
-    print_help_item("Esc", "switch to normal mode");
+    println!("  {}", theme::subtext1().paint("Keybindings"));
+    print_help_item("Esc", "go home (/home)");
     print_help_item("i, a", "switch to insert mode");
     print_help_item("Ctrl+R", "reverse search history");
     print_help_item("Tab", "autocomplete");
@@ -635,62 +957,35 @@ fn cmd_templates(args: &[&str]) -> Result<()> {
             Ok(())
         }
         "edit" => {
-            if args.len() < 2 {
-                println!(
-                    "{} missing template name",
-                    theme::red().paint("error:")
-                );
-                println!("  usage: /templates edit <name>");
-                return Ok(());
-            }
-            let name = args[1];
-
-            // try outcomes first, then baselines
-            let outcomes_path = Config::outcomes_dir().join(format!("{}.toml", name));
-            let baselines_path = Config::baselines_dir().join(format!("{}.toml", name));
-
-            let (path, kind) = if outcomes_path.exists() {
-                (outcomes_path, "outcomes")
-            } else if baselines_path.exists() {
-                (baselines_path, "baselines")
+            let (kind, name) = if args.len() < 2 {
+                match pick_template_for_edit()? {
+                    Some(selection) => selection,
+                    None => return Ok(()),
+                }
             } else {
-                println!(
-                    "{} template not found: {}",
-                    theme::red().paint("error:"),
-                    theme::text().paint(name)
-                );
-                println!(
-                    "  create with: {}",
-                    theme::sapphire().paint(format!("/templates new outcomes {}", name))
-                );
-                return Ok(());
-            };
+                let name = args[1].to_string();
+                let outcomes_path = Config::outcomes_dir().join(format!("{}.toml", name));
+                let baselines_path = Config::baselines_dir().join(format!("{}.toml", name));
 
-            // load current vars
-            let template = if kind == "outcomes" {
-                Config::load_outcomes(name)
-            } else {
-                Config::load_baselines(name)
-            };
-
-            let current_vars = template.map(|t| t.vars).unwrap_or_default();
-
-            // interactive edit
-            println!();
-            match picker::edit_template(name, &current_vars)? {
-                Some(new_vars) => {
-                    save_template(&path, &new_vars)?;
+                if outcomes_path.exists() {
+                    ("outcomes".to_string(), name)
+                } else if baselines_path.exists() {
+                    ("baselines".to_string(), name)
+                } else {
                     println!(
-                        "{} saved {} variables to {}",
-                        theme::green().paint("success:"),
-                        new_vars.len(),
-                        name
+                        "{} template not found: {}",
+                        theme::red().paint("error:"),
+                        theme::text().paint(&name)
                     );
+                    println!(
+                        "  create with: {}",
+                        theme::sapphire().paint(format!("/templates new outcomes {}", name))
+                    );
+                    return Ok(());
                 }
-                None => {
-                    println!("{}", theme::yellow().paint("cancelled"));
-                }
-            }
+            };
+
+            let _ = edit_template_vars(&kind, &name)?;
             Ok(())
         }
         "open" => {
@@ -782,7 +1077,7 @@ fn cmd_templates(args: &[&str]) -> Result<()> {
                 theme::yellow().paint("warning:"),
                 theme::text().paint(subcommand)
             );
-            println!("  try: /templates, /templates outcomes, /templates baselines, /templates edit <name>");
+            println!("  try: /templates, /templates outcomes, /templates baselines, /templates edit [name]");
             Ok(())
         }
     }
@@ -841,6 +1136,366 @@ vars = [
 ]
 "#
     .to_string()
+}
+
+fn view_baseline_picker() -> Result<Option<String>> {
+    loop {
+        let baselines = Config::list_baselines();
+
+        if baselines.is_empty() {
+            println!();
+            println!(
+                "  {} no baseline templates found",
+                theme::yellow().paint("warning:")
+            );
+            println!(
+                "  {} use /templates new baselines <name> to create one",
+                theme::overlay0().paint("hint:")
+            );
+            println!();
+            return Ok(None);
+        }
+
+        let mut items: Vec<String> = Vec::new();
+        for name in &baselines {
+            let count = Config::load_baselines(name).map(|t| t.vars.len()).unwrap_or(0);
+            items.push(format!("{} ({} vars)", name, count));
+        }
+
+        let selection = picker::browse_templates("Select baseline to view:", &items)?;
+        let Some(selected) = selection else {
+            return Ok(None);
+        };
+        let Some(name) = template_name_from_item(&selected) else {
+            continue;
+        };
+        let name = name.to_string();
+        view_baseline_template(&name)?;
+
+        loop {
+            let actions = vec![
+                "use this template",
+                "edit this template",
+                "back to list",
+            ];
+
+            let action = inquire::Select::new("Template actions:", actions)
+                .with_help_message("↑↓ navigate, Enter select, Esc cancel")
+                .prompt_skippable()?;
+
+            match action {
+                Some(a) if a.starts_with("use") => return Ok(Some(name)),
+                Some(a) if a.starts_with("edit") => {
+                    if let Some(view_name) = edit_template_vars("baselines", &name)? {
+                        view_baseline_template(&view_name)?;
+                    }
+                }
+                Some(a) if a.starts_with("back") => break,
+                _ => return Ok(None),
+            }
+        }
+    }
+}
+
+fn view_outcome_picker() -> Result<Option<String>> {
+    loop {
+        let outcomes = Config::list_outcomes();
+
+        if outcomes.is_empty() {
+            println!();
+            println!(
+                "  {} no outcome templates found",
+                theme::yellow().paint("warning:")
+            );
+            println!(
+                "  {} use /templates new outcomes <name> to create one",
+                theme::overlay0().paint("hint:")
+            );
+            println!();
+            return Ok(None);
+        }
+
+        let mut items: Vec<String> = Vec::new();
+        for name in &outcomes {
+            let count = Config::load_outcomes(name).map(|t| t.vars.len()).unwrap_or(0);
+            items.push(format!("{} ({} vars)", name, count));
+        }
+
+        let selection = picker::browse_templates("Select outcome template to view:", &items)?;
+        let Some(selected) = selection else {
+            return Ok(None);
+        };
+        let Some(name) = template_name_from_item(&selected) else {
+            continue;
+        };
+        let name = name.to_string();
+        view_outcome_template(&name)?;
+
+        loop {
+            let actions = vec![
+                "use this template",
+                "edit this template",
+                "back to list",
+            ];
+
+            let action = inquire::Select::new("Template actions:", actions)
+                .with_help_message("↑↓ navigate, Enter select, Esc cancel")
+                .prompt_skippable()?;
+
+            match action {
+                Some(a) if a.starts_with("use") => return Ok(Some(name)),
+                Some(a) if a.starts_with("edit") => {
+                    if let Some(view_name) = edit_template_vars("outcomes", &name)? {
+                        view_outcome_template(&view_name)?;
+                    }
+                }
+                Some(a) if a.starts_with("back") => break,
+                _ => return Ok(None),
+            }
+        }
+    }
+}
+
+fn edit_template_vars(kind: &str, name: &str) -> Result<Option<String>> {
+    let (path, template) = match kind {
+        "outcomes" => (
+            Config::outcomes_dir().join(format!("{}.toml", name)),
+            Config::load_outcomes(name),
+        ),
+        "baselines" => (
+            Config::baselines_dir().join(format!("{}.toml", name)),
+            Config::load_baselines(name),
+        ),
+        _ => {
+            println!(
+                "{} unknown template kind: {}",
+                theme::red().paint("error:"),
+                theme::text().paint(kind)
+            );
+            return Ok(None);
+        }
+    };
+
+    if !path.exists() {
+        println!(
+            "{} template not found: {}",
+            theme::red().paint("error:"),
+            theme::text().paint(name)
+        );
+        return Ok(None);
+    }
+
+    let current_vars = template.map(|t| t.vars).unwrap_or_default();
+
+    println!();
+    match picker::edit_template(name, &current_vars)? {
+        Some(new_vars) => {
+            let actions = vec![
+                format!("overwrite {}", name),
+                "save as new template".to_string(),
+                "discard changes".to_string(),
+            ];
+
+            let action = inquire::Select::new("Save template changes:", actions)
+                .with_help_message("↑↓ navigate, Enter select, Esc cancel")
+                .prompt_skippable()?;
+
+            match action {
+                Some(a) if a.starts_with("overwrite") => {
+                    save_template(&path, &new_vars)?;
+                    println!(
+                        "{} saved {} variables to {}",
+                        theme::green().paint("success:"),
+                        new_vars.len(),
+                        name
+                    );
+                    Ok(Some(name.to_string()))
+                }
+                Some(a) if a.starts_with("save as new") => {
+                    let new_name = match prompt_new_template_name(kind)? {
+                        Some(value) => value,
+                        None => {
+                            println!("{}", theme::yellow().paint("cancelled"));
+                            return Ok(None);
+                        }
+                    };
+                    let new_path = match kind {
+                        "outcomes" => Config::outcomes_dir().join(format!("{}.toml", new_name)),
+                        _ => Config::baselines_dir().join(format!("{}.toml", new_name)),
+                    };
+                    save_template(&new_path, &new_vars)?;
+                    println!(
+                        "{} saved {} variables to {}",
+                        theme::green().paint("success:"),
+                        new_vars.len(),
+                        new_name
+                    );
+                    Ok(Some(new_name))
+                }
+                Some(a) if a.starts_with("discard") => {
+                    println!("{}", theme::yellow().paint("cancelled"));
+                    Ok(None)
+                }
+                None => {
+                    println!("{}", theme::yellow().paint("cancelled"));
+                    Ok(None)
+                }
+                _ => Ok(None),
+            }
+        }
+        None => {
+            println!("{}", theme::yellow().paint("cancelled"));
+            Ok(None)
+        }
+    }
+}
+
+fn prompt_new_template_name(kind: &str) -> Result<Option<String>> {
+    loop {
+        let result = inquire::Text::new("New template name:")
+            .with_help_message("letters, numbers, underscores")
+            .prompt_skippable()?;
+
+        let Some(name) = result else {
+            return Ok(None);
+        };
+
+        if name.trim().is_empty() {
+            println!(
+                "{} template name cannot be empty",
+                theme::yellow().paint("warning:")
+            );
+            continue;
+        }
+
+        if !name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            println!(
+                "{} use only letters, numbers, and underscores",
+                theme::yellow().paint("warning:")
+            );
+            continue;
+        }
+
+        let path = match kind {
+            "outcomes" => Config::outcomes_dir().join(format!("{}.toml", name)),
+            _ => Config::baselines_dir().join(format!("{}.toml", name)),
+        };
+        if path.exists() {
+            println!(
+                "{} template already exists: {}",
+                theme::yellow().paint("warning:"),
+                theme::text().paint(&name)
+            );
+            continue;
+        }
+
+        return Ok(Some(name));
+    }
+}
+
+fn view_baseline_template(name: &str) -> Result<()> {
+    let template = Config::load_baselines(name);
+    let path = Config::baselines_dir().join(format!("{}.toml", name));
+
+    match template {
+        Some(t) => {
+            print_vars_block(&format!("Baseline template: {}", name), &t.vars);
+        }
+        None if path.exists() => {
+            print_vars_block(&format!("Baseline template: {}", name), &[]);
+        }
+        None => {
+            println!();
+            println!(
+                "  {} baseline template '{}' not found",
+                theme::yellow().paint("warning:"),
+                theme::sapphire().paint(name)
+            );
+            println!(
+                "  {} use /templates to list available templates",
+                theme::overlay0().paint("hint:")
+            );
+            println!();
+        }
+    }
+
+    Ok(())
+}
+
+fn view_outcome_template(name: &str) -> Result<()> {
+    let template = Config::load_outcomes(name);
+    let path = Config::outcomes_dir().join(format!("{}.toml", name));
+
+    match template {
+        Some(t) => {
+            print_vars_block(&format!("Outcome template: {}", name), &t.vars);
+        }
+        None if path.exists() => {
+            print_vars_block(&format!("Outcome template: {}", name), &[]);
+        }
+        None => {
+            println!();
+            println!(
+                "  {} outcome template '{}' not found",
+                theme::yellow().paint("warning:"),
+                theme::sapphire().paint(name)
+            );
+            println!(
+                "  {} use /templates to list available templates",
+                theme::overlay0().paint("hint:")
+            );
+            println!();
+        }
+    }
+
+    Ok(())
+}
+
+fn template_name_from_item(item: &str) -> Option<&str> {
+    item.split_whitespace().next()
+}
+
+fn pick_template_for_edit() -> Result<Option<(String, String)>> {
+    let outcomes = Config::list_outcomes();
+    let baselines = Config::list_baselines();
+
+    if outcomes.is_empty() && baselines.is_empty() {
+        println!();
+        println!(
+            "  {} no templates found",
+            theme::yellow().paint("warning:")
+        );
+        println!(
+            "  {} use /templates new <type> <name> to create one",
+            theme::overlay0().paint("hint:")
+        );
+        println!();
+        return Ok(None);
+    }
+
+    let mut items: Vec<String> = Vec::new();
+    for name in &outcomes {
+        let count = Config::load_outcomes(name).map(|t| t.vars.len()).unwrap_or(0);
+        items.push(format!("outcomes/{} ({} vars)", name, count));
+    }
+    for name in &baselines {
+        let count = Config::load_baselines(name).map(|t| t.vars.len()).unwrap_or(0);
+        items.push(format!("baselines/{} ({} vars)", name, count));
+    }
+
+    let selection = picker::browse_templates("Select template to edit:", &items)?;
+    let Some(selected) = selection else {
+        return Ok(None);
+    };
+
+    let Some(path) = template_name_from_item(&selected) else {
+        return Ok(None);
+    };
+    let Some((kind, name)) = path.split_once('/') else {
+        return Ok(None);
+    };
+
+    Ok(Some((kind.to_string(), name.to_string())))
 }
 
 fn cmd_view(args: &[&str]) -> Result<()> {

@@ -1,5 +1,8 @@
 ## Short term questions
 1. Should we let users compile projects once settings are fixed, and accept harder debugging to reduce coding?
+2. Allow users to choose cut points for continuous vars when creating binary versions.
+3. Plan extensibility for time-varying confounders in the framework.
+4. Enable confounders from the same wave as exposure when exposure cannot affect them.
 
 ## TUI planning
 1. Keep margo stable and plan a separate margot TUI track using the latest ratatui refactor.
@@ -11,3 +14,4 @@
 7. Decide input style: list, search, or hybrid, and show defaults and overrides.
 8. Decide how selections write templates while preserving user edits and config preferences.
 9. Decide release strategy, optional subcommand or feature flag, plus fallback when terminals lack effects.
+10. Consider a TUI that organizes variables left to right as confounders, exposures, time-varying confounders, time-varying outcomes, and end-of-study outcomes.

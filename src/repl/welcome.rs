@@ -22,6 +22,14 @@ fn print_logo() {
         "  {}",
         theme::subtext0().paint(theme::TAGLINE)
     );
+    println!(
+        "  {}",
+        theme::subtext0().paint(format!(
+            "{} v{}",
+            env!("CARGO_PKG_NAME"),
+            env!("CARGO_PKG_VERSION")
+        ))
+    );
     println!();
 }
 
@@ -87,6 +95,7 @@ fn print_tips() {
     print_tip("/e", "edit template");
     print_tip("init", "scaffold project");
     print_tip("/r", "refresh screen");
+    print_tip("Esc", "go home");
     print_tip("q", "quit");
     println!();
 }
