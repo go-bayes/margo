@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-01-11
+
+### Fixed
+1. Restored shipped baseline and outcome templates on startup when the user copy is missing or still unmodified.
+
 ## [0.3.5] - 2025-12-27
 
 ### Changed

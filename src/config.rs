@@ -201,44 +201,10 @@ use_rv = true
 "#.to_string()
     }
 
-    /// ensure baseline/outcome templates exist; if none, write bundled defaults
+    /// ensure baseline/outcome templates exist and refresh unmodified defaults
     pub fn ensure_templates_initialized() -> Result<Vec<String>, String> {
-        fs::create_dir_all(Self::baselines_dir())
-            .map_err(|e| format!("failed to create baselines dir: {}", e))?;
-        fs::create_dir_all(Self::outcomes_dir())
-            .map_err(|e| format!("failed to create outcomes dir: {}", e))?;
-
-        let mut created = Vec::new();
-        let shipped = shipped_templates();
-
-        for kind in [TemplateKind::Baselines, TemplateKind::Outcomes] {
-            let dir = match kind {
-                TemplateKind::Baselines => Self::baselines_dir(),
-                TemplateKind::Outcomes => Self::outcomes_dir(),
-            };
-
-            if has_user_templates(&dir) {
-                continue;
-            }
-
-            for asset in shipped.iter().filter(|a| a.kind == kind) {
-                let path = dir.join(format!("{}.toml", asset.name));
-                if path.exists() {
-                    continue;
-                }
-                fs::write(&path, asset.content)
-                    .map_err(|e| format!("failed to write {}: {}", path.display(), e))?;
-                created.push(path.display().to_string());
-            }
-        }
-
-        if !created.is_empty() {
-            let manifest_path = templates_manifest_path();
-            save_manifest(&manifest_path, &shipped_manifest())
-                .map_err(|e| format!("failed to write manifest: {}", e))?;
-        }
-
-        Ok(created)
+        let report = Self::refresh_templates(TemplateRefreshOptions::default())?;
+        Ok(report.created)
     }
 
     /// refresh templates against bundled defaults (hash-aware, non-destructive)
@@ -754,21 +720,6 @@ fn hash_content(content: &str) -> String {
     hasher.update(content.as_bytes());
     let result = hasher.finalize();
     format!("{:x}", result)
-}
-
-fn has_user_templates(dir: &Path) -> bool {
-    if let Ok(entries) = fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                continue;
-            }
-            if path.extension().map(|e| e == "toml").unwrap_or(false) {
-                return true;
-            }
-        }
-    }
-    false
 }
 
 fn templates_manifest_path() -> PathBuf {
