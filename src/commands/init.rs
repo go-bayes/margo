@@ -3,7 +3,7 @@ use crossterm::tty::IsTty;
 use nu_ansi_term::Color;
 use std::fs;
 use std::io::stdin;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::config::Config;
 use crate::templates::grf;
@@ -26,20 +26,13 @@ pub fn grf_from_config(
     // load user config
     let config = Config::load();
 
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+
     // get pull_data path - from config or default to current directory
-    let pull_data = config.pull_data.clone().unwrap_or_else(|| {
-        std::env::current_dir()
-            .map(|p| p.display().to_string())
-            .unwrap_or_else(|_| ".".to_string())
-    });
+    let pull_data = config.resolve_pull_data(&cwd);
 
     // get push_mods path - from config or default to ./outputs
-    let push_mods_base = config.push_mods.clone().unwrap_or_else(|| {
-        // default to outputs subdirectory in current working directory
-        std::env::current_dir()
-            .map(|p| p.join("outputs").display().to_string())
-            .unwrap_or_else(|_| "./outputs".to_string())
-    });
+    let push_mods_base = config.resolve_push_mods_base(&cwd);
 
     // collect outcome variables from direct args and/or templates
     let mut outcome_vars: Vec<String> = Vec::new();
@@ -98,9 +91,12 @@ pub fn grf_from_config(
     };
 
     // create push_mods project subfolder
-    let push_mods_path = format!("{}/{}", push_mods_base, project_name);
+    let push_mods_path = push_mods_base.join(&project_name);
     fs::create_dir_all(&push_mods_path)
-        .with_context(|| format!("failed to create output directory '{}'", push_mods_path))?;
+        .with_context(|| format!("failed to create output directory '{}'", push_mods_path.display()))?;
+
+    let pull_data_display = pull_data.display().to_string();
+    let push_mods_display = push_mods_path.display().to_string();
 
     // check rv setting (default to true)
     let use_rv = config.use_rv.unwrap_or(true);
@@ -114,8 +110,8 @@ pub fn grf_from_config(
     // write scripts to current directory
     let files = grf::get_template_files_with_config(
         &project_name,
-        &pull_data,
-        &push_mods_path,
+        &pull_data_display,
+        &push_mods_display,
         exposure,
         &baseline_vars,
         &outcome_vars,
@@ -132,7 +128,10 @@ pub fn grf_from_config(
     println!("{}", Color::Green.bold().paint("Project created successfully!"));
     println!();
     println!("Scripts created in current directory");
-    println!("Outputs will be written to: {}", Color::Cyan.paint(&push_mods_path));
+    println!(
+        "Outputs will be written to: {}",
+        Color::Cyan.paint(&push_mods_display)
+    );
     println!();
 
     // offer to open study.toml in editor (only in interactive mode)
@@ -267,20 +266,13 @@ pub fn grf_event_from_config(
     // load user config
     let config = Config::load();
 
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+
     // get pull_data path - from config or default to current directory
-    let pull_data = config.pull_data.clone().unwrap_or_else(|| {
-        std::env::current_dir()
-            .map(|p| p.display().to_string())
-            .unwrap_or_else(|_| ".".to_string())
-    });
+    let pull_data = config.resolve_pull_data(&cwd);
 
     // get push_mods path - from config or default to ./outputs
-    let push_mods_base = config.push_mods.clone().unwrap_or_else(|| {
-        // default to outputs subdirectory in current working directory
-        std::env::current_dir()
-            .map(|p| p.join("outputs").display().to_string())
-            .unwrap_or_else(|_| "./outputs".to_string())
-    });
+    let push_mods_base = config.resolve_push_mods_base(&cwd);
 
     // outcome variable (default to exposure if not specified)
     let outcome_var = outcome.unwrap_or("outcome_variable");
@@ -313,9 +305,12 @@ pub fn grf_event_from_config(
         });
 
     // create push_mods project subfolder
-    let push_mods_path = format!("{}/{}", push_mods_base, project_name);
+    let push_mods_path = push_mods_base.join(&project_name);
     fs::create_dir_all(&push_mods_path)
-        .with_context(|| format!("failed to create output directory '{}'", push_mods_path))?;
+        .with_context(|| format!("failed to create output directory '{}'", push_mods_path.display()))?;
+
+    let pull_data_display = pull_data.display().to_string();
+    let push_mods_display = push_mods_path.display().to_string();
 
     println!(
         "{} GRF Event Study project '{}'",
@@ -332,8 +327,8 @@ pub fn grf_event_from_config(
     // write scripts to current directory
     let files = grf_event::get_template_files_with_config(
         &project_name,
-        &pull_data,
-        &push_mods_path,
+        &pull_data_display,
+        &push_mods_display,
         exposure,
         &baseline_vars,
         outcome_var,
@@ -351,7 +346,10 @@ pub fn grf_event_from_config(
     println!("{}", Color::Green.bold().paint("Project created successfully!"));
     println!();
     println!("Scripts created in current directory");
-    println!("Outputs will be written to: {}", Color::Cyan.paint(&push_mods_path));
+    println!(
+        "Outputs will be written to: {}",
+        Color::Cyan.paint(&push_mods_display)
+    );
     println!();
 
     // offer to open study.toml in editor (only in interactive mode)

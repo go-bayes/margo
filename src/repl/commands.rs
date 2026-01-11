@@ -3,12 +3,14 @@
 use anyhow::{bail, Result};
 use std::env;
 use std::fs;
+use std::path::PathBuf;
 
 use crate::commands::init;
 use crate::config::Config;
 use crate::theme;
 
 use super::fuzzy;
+use super::pathpicker;
 use super::picker;
 use super::welcome;
 
@@ -314,13 +316,12 @@ fn handle_init_grf() -> Result<()> {
     );
 
     // show project location (scripts go here)
-    let cwd = std::env::current_dir()
-        .map(|p| p.display().to_string())
-        .unwrap_or_else(|_| ".".to_string());
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let cwd_display = cwd.display().to_string();
     println!(
         "  {} {}",
         theme::subtext0().paint("scripts:"),
-        theme::text().paint(shorten_path(&cwd))
+        theme::text().paint(shorten_path(&cwd_display))
     );
 
     // show output directory (model outputs go here)
@@ -331,12 +332,13 @@ fn handle_init_grf() -> Result<()> {
         templates.as_deref(),
         name.as_deref(),
     );
-    let push_mods = resolve_push_mods_base(&config, &cwd);
-    let output_path = format!("{}/{}", push_mods, project_name);
+    let push_mods = config.resolve_push_mods_base(&cwd);
+    let push_mods_display = push_mods.display().to_string();
+    let output_path = push_mods.join(&project_name);
     println!(
         "  {} {}/{}",
         theme::subtext0().paint("output:"),
-        theme::text().paint(shorten_path(&push_mods)),
+        theme::text().paint(shorten_path(&push_mods_display)),
         theme::text().paint(&project_name)
     );
     println!();
@@ -353,8 +355,8 @@ fn handle_init_grf() -> Result<()> {
         baseline_vars_override.as_deref(),
         &outcomes,
         templates.as_deref(),
-        &output_path,
-        &cwd,
+        &output_path.display().to_string(),
+        &cwd_display,
     )? {
         println!("{}", theme::yellow().paint("cancelled"));
         return Ok(());
@@ -418,14 +420,6 @@ fn grf_event_project_name(exposure: &str, custom_name: Option<&str>) -> String {
     custom_name
         .map(|s| s.to_string())
         .unwrap_or_else(|| format!("{}-event-study", exposure))
-}
-
-fn resolve_push_mods_base(config: &Config, cwd: &str) -> String {
-    config
-        .push_mods
-        .clone()
-        .filter(|p| !p.trim().is_empty())
-        .unwrap_or_else(|| format!("{}/outputs", cwd))
 }
 
 fn maybe_review_grf_details(
@@ -716,24 +710,24 @@ fn handle_init_grf_event() -> Result<()> {
     }
 
     // show project location (scripts go here)
-    let cwd = std::env::current_dir()
-        .map(|p| p.display().to_string())
-        .unwrap_or_else(|_| ".".to_string());
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let cwd_display = cwd.display().to_string();
     println!(
         "  {} {}",
         theme::subtext0().paint("scripts:"),
-        theme::text().paint(shorten_path(&cwd))
+        theme::text().paint(shorten_path(&cwd_display))
     );
 
     // show output directory
     let config = Config::load();
     let project_name = grf_event_project_name(&exposure, name.as_deref());
-    let push_mods = resolve_push_mods_base(&config, &cwd);
-    let output_path = format!("{}/{}", push_mods, project_name);
+    let push_mods = config.resolve_push_mods_base(&cwd);
+    let push_mods_display = push_mods.display().to_string();
+    let output_path = push_mods.join(&project_name);
     println!(
         "  {} {}/{}",
         theme::subtext0().paint("output:"),
-        theme::text().paint(shorten_path(&push_mods)),
+        theme::text().paint(shorten_path(&push_mods_display)),
         theme::text().paint(&project_name)
     );
     println!();
@@ -747,8 +741,8 @@ fn handle_init_grf_event() -> Result<()> {
     if !maybe_review_grf_event_details(
         &baseline,
         outcome.as_deref(),
-        &output_path,
-        &cwd,
+        &output_path.display().to_string(),
+        &cwd_display,
     )? {
         println!("{}", theme::yellow().paint("cancelled"));
         return Ok(());
@@ -785,6 +779,10 @@ fn cmd_help() -> Result<()> {
     print_help_item("/help, /h", "show this help");
     print_help_item("/config", "show current configuration");
     print_help_item("/config edit", "edit config in $EDITOR");
+    print_help_item("/config data", "set data directory (pull_data)");
+    print_help_item("/config output", "set output directory (push_mods)");
+    print_help_item("/config setup", "set default paths (pull_data, push_mods)");
+    print_help_item("/config reset", "reset config to defaults");
     print_help_item("/config init", "create default config");
     print_help_item("/templates, /t", "list all templates");
     print_help_item("/t outcomes", "list outcome templates");
@@ -875,42 +873,15 @@ fn cmd_config(args: &[&str]) -> Result<()> {
             Ok(())
         }
         "edit" => {
+            Config::ensure_config_file()?;
             let config_path = Config::config_path();
-            let config_dir = Config::config_dir();
-
-            // create if doesn't exist
-            if !config_path.exists() {
-                fs::create_dir_all(&config_dir)?;
-                fs::write(&config_path, Config::default_config_content())?;
-            }
-
             open_in_editor(&config_path.to_string_lossy())
         }
-        "init" => {
-            let config_path = Config::config_path();
-            let config_dir = Config::config_dir();
-
-            if config_path.exists() {
-                println!(
-                    "{} config already exists at: {}",
-                    theme::yellow().paint("note:"),
-                    config_path.display()
-                );
-                println!(
-                    "  edit with: {}",
-                    theme::sapphire().paint("/config edit")
-                );
-            } else {
-                fs::create_dir_all(&config_dir)?;
-                fs::write(&config_path, Config::default_config_content())?;
-                println!(
-                    "{} created config at: {}",
-                    theme::green().paint("success:"),
-                    config_path.display()
-                );
-            }
-            Ok(())
-        }
+        "data" => cmd_config_data(),
+        "output" => cmd_config_output(),
+        "setup" => cmd_config_setup(),
+        "reset" => cmd_config_reset(),
+        "init" => cmd_config_init(),
         "path" => {
             println!("{}", Config::config_path().display());
             Ok(())
@@ -921,10 +892,260 @@ fn cmd_config(args: &[&str]) -> Result<()> {
                 theme::yellow().paint("warning:"),
                 theme::text().paint(subcommand)
             );
-            println!("  try: /config, /config edit, /config init, /config path");
+            println!("  try: /config, /config edit, /config data, /config output, /config setup, /config reset, /config init, /config path");
             Ok(())
         }
     }
+}
+
+fn cmd_config_output() -> Result<()> {
+    Config::ensure_config_file()?;
+
+    let methods = vec![
+        "choose directory — browse folders",
+        "type path        — enter manually",
+    ];
+
+    let method = inquire::Select::new("Set output directory (push_mods):", methods)
+        .with_help_message("↑↓ navigate, Enter select, Esc cancel")
+        .prompt_skippable()?;
+
+    let value = match method {
+        Some(m) if m.starts_with("choose") => {
+            match pathpicker::pick_output_directory("Select output directory:")? {
+                pathpicker::PickerResult::Selected(path) => path.display().to_string(),
+                pathpicker::PickerResult::Cancelled => {
+                    println!("{}", theme::yellow().paint("cancelled"));
+                    return Ok(());
+                }
+            }
+        }
+        Some(m) if m.starts_with("type") => {
+            let config = Config::load();
+            let cwd = std::env::current_dir()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|_| ".".to_string());
+            let default_value = config
+                .push_mods
+                .unwrap_or_else(|| format!("{}/outputs", cwd));
+            let input = inquire::Text::new("Output directory:")
+                .with_initial_value(&default_value)
+                .with_help_message("absolute or relative path")
+                .prompt_skippable()?;
+            match input {
+                Some(value) if !value.trim().is_empty() => value.trim().to_string(),
+                _ => {
+                    println!("{}", theme::yellow().paint("cancelled"));
+                    return Ok(());
+                }
+            }
+        }
+        _ => {
+            println!("{}", theme::yellow().paint("cancelled"));
+            return Ok(());
+        }
+    };
+
+    Config::set_config_value("paths", "push_mods", &value)?;
+    println!(
+        "{} output directory set to: {}",
+        theme::green().paint("success:"),
+        theme::text().paint(&value)
+    );
+    Ok(())
+}
+
+fn cmd_config_data() -> Result<()> {
+    Config::ensure_config_file()?;
+
+    let methods = vec![
+        "choose directory — browse folders",
+        "type path        — enter manually",
+    ];
+
+    let method = inquire::Select::new("Set data directory (pull_data):", methods)
+        .with_help_message("↑↓ navigate, Enter select, Esc cancel")
+        .prompt_skippable()?;
+
+    let value = match method {
+        Some(m) if m.starts_with("choose") => {
+            let start = std::env::current_dir().ok();
+            match pathpicker::pick_directory("Select data directory:", start.as_deref())? {
+                pathpicker::PickerResult::Selected(path) => path.display().to_string(),
+                pathpicker::PickerResult::Cancelled => {
+                    println!("{}", theme::yellow().paint("cancelled"));
+                    return Ok(());
+                }
+            }
+        }
+        Some(m) if m.starts_with("type") => {
+            let config = Config::load();
+            let cwd = std::env::current_dir()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|_| ".".to_string());
+            let default_value = config.pull_data.unwrap_or_else(|| cwd);
+            let input = inquire::Text::new("Data directory:")
+                .with_initial_value(&default_value)
+                .with_help_message("absolute or relative path")
+                .prompt_skippable()?;
+            match input {
+                Some(value) if !value.trim().is_empty() => value.trim().to_string(),
+                _ => {
+                    println!("{}", theme::yellow().paint("cancelled"));
+                    return Ok(());
+                }
+            }
+        }
+        _ => {
+            println!("{}", theme::yellow().paint("cancelled"));
+            return Ok(());
+        }
+    };
+
+    Config::set_config_value("paths", "pull_data", &value)?;
+    println!(
+        "{} data directory set to: {}",
+        theme::green().paint("success:"),
+        theme::text().paint(&value)
+    );
+    Ok(())
+}
+
+fn cmd_config_setup() -> Result<()> {
+    Config::ensure_config_file()?;
+    run_config_setup()
+}
+
+fn cmd_config_init() -> Result<()> {
+    let config_path = Config::config_path();
+    if config_path.exists() {
+        println!(
+            "{} config already exists at: {}",
+            theme::yellow().paint("note:"),
+            config_path.display()
+        );
+        println!("  edit with: {}", theme::sapphire().paint("/config edit"));
+        return Ok(());
+    }
+
+    Config::ensure_config_file()?;
+    println!(
+        "{} created config at: {}",
+        theme::green().paint("success:"),
+        config_path.display()
+    );
+
+    let setup = inquire::Confirm::new("Set default paths now?")
+        .with_default(true)
+        .with_help_message("Esc to skip")
+        .prompt_skippable()?;
+
+    if matches!(setup, Some(true)) {
+        run_config_setup()?;
+    }
+
+    Ok(())
+}
+
+fn cmd_config_reset() -> Result<()> {
+    let config_path = Config::config_path();
+    if config_path.exists() {
+        let confirm = inquire::Confirm::new("Reset config to margo defaults?")
+            .with_default(false)
+            .with_help_message("This overwrites config.toml")
+            .prompt_skippable()?;
+        if !matches!(confirm, Some(true)) {
+            println!("{}", theme::yellow().paint("cancelled"));
+            return Ok(());
+        }
+    }
+
+    Config::write_default_config()?;
+    println!(
+        "{} reset config at: {}",
+        theme::green().paint("success:"),
+        config_path.display()
+    );
+    Ok(())
+}
+
+fn run_config_setup() -> Result<()> {
+    let config = Config::load();
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let cwd_display = cwd.display().to_string();
+
+    println!();
+    println!("  {}", theme::peach().paint("Default Paths"));
+    println!(
+        "  {}",
+        theme::overlay0().paint("─────────────────────────────────────────────")
+    );
+
+    let pull_default = config.pull_data.unwrap_or_else(|| cwd_display.clone());
+    if let Some(value) = prompt_path_value(
+        "Default data directory (pull_data):",
+        &pull_default,
+        "Enter to accept, Esc to skip",
+    )? {
+        Config::set_config_value("paths", "pull_data", &value)?;
+    }
+
+    let push_default = config
+        .push_mods
+        .unwrap_or_else(|| format!("{}/outputs", cwd_display));
+    if let Some(value) = prompt_path_value(
+        "Default output directory (push_mods):",
+        &push_default,
+        "Project subfolders will be created here (Esc to skip)",
+    )? {
+        Config::set_config_value("paths", "push_mods", &value)?;
+    }
+
+    Ok(())
+}
+
+fn prompt_path_value(prompt: &str, default_value: &str, help: &str) -> Result<Option<String>> {
+    let input = inquire::Text::new(prompt)
+        .with_initial_value(default_value)
+        .with_help_message(help)
+        .prompt_skippable()?;
+
+    match input {
+        Some(value) => {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(trimmed.to_string()))
+            }
+        }
+        None => Ok(None),
+    }
+}
+
+pub(super) fn maybe_first_run_setup() -> Result<()> {
+    let config_path = Config::config_path();
+    if config_path.exists() {
+        return Ok(());
+    }
+
+    println!();
+    println!(
+        "{} no config file found ({}).",
+        theme::yellow().paint("note:"),
+        theme::text().paint(config_path.display().to_string())
+    );
+    let setup = inquire::Confirm::new("Set default paths now?")
+        .with_default(true)
+        .with_help_message("You can run /config setup later")
+        .prompt_skippable()?;
+
+    if matches!(setup, Some(true)) {
+        Config::ensure_config_file()?;
+        run_config_setup()?;
+    }
+
+    Ok(())
 }
 
 fn print_config_value(key: &str, value: &str) {

@@ -217,6 +217,111 @@ use_rv = true
 "#.to_string()
     }
 
+    /// ensure config file exists with defaults
+    pub fn ensure_config_file() -> std::io::Result<()> {
+        let config_path = Self::config_path();
+        if config_path.exists() {
+            return Ok(());
+        }
+
+        let config_dir = Self::config_dir();
+        fs::create_dir_all(&config_dir)?;
+        fs::write(&config_path, Self::default_config_content())?;
+        Ok(())
+    }
+
+    /// overwrite config file with defaults
+    pub fn write_default_config() -> std::io::Result<()> {
+        let config_path = Self::config_path();
+        let config_dir = Self::config_dir();
+        fs::create_dir_all(&config_dir)?;
+        fs::write(&config_path, Self::default_config_content())?;
+        Ok(())
+    }
+
+    /// set a config value within a section, preserving other content
+    pub fn set_config_value(section: &str, key: &str, value: &str) -> std::io::Result<()> {
+        Self::ensure_config_file()?;
+
+        let config_path = Self::config_path();
+        let content = fs::read_to_string(&config_path).unwrap_or_default();
+        let mut lines: Vec<String> = if content.is_empty() {
+            Vec::new()
+        } else {
+            content.lines().map(|line| line.to_string()).collect()
+        };
+
+        let header = format!("[{}]", section);
+        let mut section_start = None;
+        for (idx, line) in lines.iter().enumerate() {
+            if line.trim() == header {
+                section_start = Some(idx);
+                break;
+            }
+        }
+
+        if section_start.is_none() {
+            if !lines.is_empty() && !lines.last().unwrap().is_empty() {
+                lines.push(String::new());
+            }
+            lines.push(header);
+            lines.push(format!("{} = \"{}\"", key, value));
+            fs::write(&config_path, format!("{}\n", lines.join("\n")))?;
+            return Ok(());
+        }
+
+        let start = section_start.unwrap();
+        let mut end = lines.len();
+        for idx in start + 1..lines.len() {
+            if lines[idx].trim().starts_with('[') {
+                end = idx;
+                break;
+            }
+        }
+
+        let mut key_index = None;
+        for idx in start + 1..end {
+            let mut trimmed = lines[idx].trim_start();
+            if let Some(rest) = trimmed.strip_prefix('#') {
+                trimmed = rest.trim_start();
+            }
+            if trimmed.starts_with(key) {
+                let remainder = trimmed[key.len()..].trim_start();
+                if remainder.starts_with('=') {
+                    key_index = Some(idx);
+                    break;
+                }
+            }
+        }
+
+        let new_line = format!("{} = \"{}\"", key, value);
+        match key_index {
+            Some(idx) => lines[idx] = new_line,
+            None => lines.insert(end, new_line),
+        }
+
+        fs::write(&config_path, format!("{}\n", lines.join("\n")))?;
+        Ok(())
+    }
+
+    /// resolve pull_data path from config or default to cwd
+    pub fn resolve_pull_data(&self, cwd: &Path) -> PathBuf {
+        self.pull_data
+            .as_deref()
+            .filter(|p| !p.trim().is_empty())
+            .map(expand_tilde)
+            .unwrap_or_else(|| cwd.to_path_buf())
+    }
+
+    /// resolve push_mods base directory from config or default to cwd/outputs
+    pub fn resolve_push_mods_base(&self, cwd: &Path) -> PathBuf {
+        self.push_mods
+            .as_deref()
+            .filter(|p| !p.trim().is_empty())
+            .map(expand_tilde)
+            .unwrap_or_else(|| cwd.join("outputs"))
+    }
+
     /// ensure baseline/outcome templates exist and refresh unmodified defaults
     pub fn ensure_templates_initialized() -> Result<Vec<String>, String> {
         let report = Self::refresh_templates(TemplateRefreshOptions::default())?;
@@ -680,6 +785,19 @@ vars = [
 ]
 "#
     }
+}
+
+fn expand_tilde(path: &str) -> PathBuf {
+    let trimmed = path.trim();
+    if trimmed == "~" || trimmed.starts_with("~/") {
+        if let Some(home) = dirs::home_dir() {
+            if trimmed == "~" {
+                return home;
+            }
+            return home.join(trimmed.trim_start_matches("~/"));
+        }
+    }
+    PathBuf::from(trimmed)
 }
 
 // keep Defaults as alias for backwards compatibility

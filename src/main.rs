@@ -1,7 +1,9 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use clap::{Parser, Subcommand};
+use crossterm::tty::IsTty;
 use nu_ansi_term::Color;
-use std::fs;
+use std::io::stdin;
+use std::path::PathBuf;
 
 mod commands;
 mod config;
@@ -46,6 +48,12 @@ enum ConfigAction {
     Path,
     /// Edit config file (opens in $EDITOR)
     Edit,
+    /// Reset config file to defaults
+    Reset {
+        /// Skip confirmation prompt
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -207,7 +215,6 @@ fn main() -> Result<()> {
         },
         Some(Commands::Config { action }) => {
             let config_path = config::Defaults::config_path();
-            let config_dir = config::Defaults::config_dir();
 
             match action {
                 Some(ConfigAction::Init) | None => {
@@ -223,8 +230,7 @@ fn main() -> Result<()> {
                             Color::Cyan.paint("margo config edit")
                         );
                     } else {
-                        fs::create_dir_all(&config_dir)?;
-                        fs::write(&config_path, config::Defaults::default_config_content())?;
+                        config::Config::ensure_config_file()?;
                         println!(
                             "{} config file at: {}",
                             Color::Green.bold().paint("Created"),
@@ -233,6 +239,16 @@ fn main() -> Result<()> {
                         println!();
                         println!("Edit this file to set your default paths:");
                         println!("  {}", Color::Cyan.paint("margo config edit"));
+
+                        if is_interactive() {
+                            let setup = inquire::Confirm::new("Set default paths now?")
+                                .with_default(true)
+                                .with_help_message("Esc to skip")
+                                .prompt_skippable()?;
+                            if matches!(setup, Some(true)) {
+                                prompt_default_paths()?;
+                            }
+                        }
                     }
                 }
                 Some(ConfigAction::Path) => {
@@ -241,8 +257,7 @@ fn main() -> Result<()> {
                 Some(ConfigAction::Edit) => {
                     // create if doesn't exist
                     if !config_path.exists() {
-                        fs::create_dir_all(&config_dir)?;
-                        fs::write(&config_path, config::Defaults::default_config_content())?;
+                        config::Config::ensure_config_file()?;
                     }
 
                     // open in editor
@@ -259,6 +274,28 @@ fn main() -> Result<()> {
                             config_path.display()
                         );
                     }
+                }
+                Some(ConfigAction::Reset { yes }) => {
+                    if config_path.exists() && !yes {
+                        if !is_interactive() {
+                            bail!("config reset requires --yes in non-interactive mode");
+                        }
+                        let confirm = inquire::Confirm::new("Reset config to margo defaults?")
+                            .with_default(false)
+                            .with_help_message("This overwrites config.toml")
+                            .prompt_skippable()?;
+                        if !matches!(confirm, Some(true)) {
+                            println!("{}", Color::Yellow.bold().paint("cancelled"));
+                            return Ok(());
+                        }
+                    }
+
+                    config::Config::write_default_config()?;
+                    println!(
+                        "{} config file at: {}",
+                        Color::Green.bold().paint("Reset"),
+                        config_path.display()
+                    );
                 }
             }
         }
@@ -500,4 +537,55 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn is_interactive() -> bool {
+    stdin().is_tty()
+}
+
+fn prompt_default_paths() -> Result<()> {
+    let config = config::Config::load();
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let cwd_display = cwd.display().to_string();
+
+    let pull_default = config.pull_data.unwrap_or_else(|| cwd_display.clone());
+    if let Some(value) = prompt_path_value(
+        "Default data directory (pull_data):",
+        &pull_default,
+        "Enter to accept, Esc to skip",
+    )? {
+        config::Config::set_config_value("paths", "pull_data", &value)?;
+    }
+
+    let push_default = config
+        .push_mods
+        .unwrap_or_else(|| format!("{}/outputs", cwd_display));
+    if let Some(value) = prompt_path_value(
+        "Default output directory (push_mods):",
+        &push_default,
+        "Project subfolders will be created here (Esc to skip)",
+    )? {
+        config::Config::set_config_value("paths", "push_mods", &value)?;
+    }
+
+    Ok(())
+}
+
+fn prompt_path_value(prompt: &str, default_value: &str, help: &str) -> Result<Option<String>> {
+    let input = inquire::Text::new(prompt)
+        .with_initial_value(default_value)
+        .with_help_message(help)
+        .prompt_skippable()?;
+
+    match input {
+        Some(value) => {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(trimmed.to_string()))
+            }
+        }
+        None => Ok(None),
+    }
 }

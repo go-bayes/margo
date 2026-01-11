@@ -34,7 +34,7 @@ impl MargoHinter {
                 ("/con", "fig"),
                 ("/conf", "ig"),
                 ("/confi", "g"),
-                ("/config ", "edit | init"),
+                ("/config ", "data | output | setup | reset | edit | init"),
                 // templates (/t is shortcut)
                 ("/t ", "outcomes | baselines | edit <name>"),
                 ("/te", "mplates"),

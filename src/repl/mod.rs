@@ -18,6 +18,7 @@ use reedline::{
 use std::path::PathBuf;
 
 use crate::config::Config;
+use crate::theme;
 use completer::MargoCompleter;
 use highlighter::MargoHighlighter;
 use hinter::MargoHinter;
@@ -27,6 +28,10 @@ use prompt::MargoPrompt;
 pub fn run() -> Result<()> {
     // clear screen and move cursor to top (full terminal takeover)
     print!("\x1B[2J\x1B[1;1H");
+
+    if let Err(e) = commands::maybe_first_run_setup() {
+        eprintln!("{}", theme::red().paint(format!("error: {}", e)));
+    }
 
     welcome::print_welcome();
 

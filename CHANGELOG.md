@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `/config output` to set the output root (`push_mods`) from the REPL
+- `/config data` to set the default data directory (`pull_data`)
+- `/config setup` to set default paths in one flow
+- `/config reset` to restore config defaults with confirmation
+- First-run prompt in the REPL to configure default paths
+- `margo config reset` CLI command
+
+### Changed
+- `margo config init` now offers an interactive default-path setup when run in a TTY
+
+### Fixed
+- Output paths now use OS-aware joins and expand `~` in config paths
+
 ## [0.3.7] - 2026-01-12
 
 ### Added

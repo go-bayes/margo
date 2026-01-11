@@ -91,6 +91,7 @@ fn print_tips() {
         theme::overlay0().paint("─────────────────────────────────────────────")
     );
     print_tip("/help", "commands");
+    print_tip("/config", "set default paths");
     print_tip("/vars", "browse variables");
     print_tip("/e", "edit template");
     print_tip("init", "scaffold project");
