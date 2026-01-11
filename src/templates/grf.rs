@@ -12,15 +12,15 @@ pub fn get_template_files(project_name: &str) -> Vec<(String, String)> {
         ("study.toml".to_string(), study_toml(project_name)),
         ("README.md".to_string(), readme(project_name, use_rv)),
         (".gitignore".to_string(), gitignore()),
-        ("00-setup.R".to_string(), script_00(use_rv)),
-        ("01-data-prep.R".to_string(), script_01()),
-        ("02-wide-format.R".to_string(), script_02()),
-        ("03-causal-forest.R".to_string(), script_03()),
-        ("04-heterogeneity.R".to_string(), script_04()),
-        ("05-policy-tree.R".to_string(), script_05()),
-        ("06-positivity.R".to_string(), script_06()),
-        ("07-tables.R".to_string(), script_07()),
-        ("08-plots.R".to_string(), script_08()),
+        ("src/00-setup.R".to_string(), script_00(use_rv)),
+        ("src/01-data-prep.R".to_string(), script_01()),
+        ("src/02-wide-format.R".to_string(), script_02()),
+        ("src/03-causal-forest.R".to_string(), script_03()),
+        ("src/04-heterogeneity.R".to_string(), script_04()),
+        ("src/05-policy-tree.R".to_string(), script_05()),
+        ("src/06-positivity.R".to_string(), script_06()),
+        ("src/07-tables.R".to_string(), script_07()),
+        ("src/08-plots.R".to_string(), script_08()),
     ]
 }
 
@@ -45,15 +45,15 @@ pub fn get_template_files_with_config(
         )),
         ("README.md".to_string(), readme(project_name, use_rv)),
         (".gitignore".to_string(), gitignore()),
-        ("00-setup.R".to_string(), script_00(use_rv)),
-        ("01-data-prep.R".to_string(), script_01()),
-        ("02-wide-format.R".to_string(), script_02()),
-        ("03-causal-forest.R".to_string(), script_03()),
-        ("04-heterogeneity.R".to_string(), script_04()),
-        ("05-policy-tree.R".to_string(), script_05()),
-        ("06-positivity.R".to_string(), script_06()),
-        ("07-tables.R".to_string(), script_07()),
-        ("08-plots.R".to_string(), script_08()),
+        ("src/00-setup.R".to_string(), script_00(use_rv)),
+        ("src/01-data-prep.R".to_string(), script_01()),
+        ("src/02-wide-format.R".to_string(), script_02()),
+        ("src/03-causal-forest.R".to_string(), script_03()),
+        ("src/04-heterogeneity.R".to_string(), script_04()),
+        ("src/05-policy-tree.R".to_string(), script_05()),
+        ("src/06-positivity.R".to_string(), script_06()),
+        ("src/07-tables.R".to_string(), script_07()),
+        ("src/08-plots.R".to_string(), script_08()),
     ]
 }
 
@@ -415,16 +415,16 @@ fn readme(project_name: &str, use_rv: bool) -> String {
 
 1. Install rv: https://github.com/A2-ai/rv
 2. Open R in this project directory
-3. Run `source("00-setup.R")` to initialise rv and install dependencies
+3. Run `source("src/00-setup.R")` to initialise rv and install dependencies
 4. Edit `study.toml` with your study-specific settings
-5. Run scripts in order: 01, 02, 03...
+5. Run scripts in order: src/01, src/02, src/03...
 "#
     } else {
         r#"
 ## Getting started
 
 1. Edit `study.toml` with your study-specific settings
-2. Run scripts in order: 01, 02, 03...
+2. Run scripts in order: src/01, src/02, src/03...
 "#
     };
 
@@ -437,15 +437,15 @@ GRF (Generalised Random Forests) causal inference workflow.
 
 | Script | Purpose |
 |--------|---------|
-| 00-setup.R | project setup (rv, dependencies) |
-| 01-data-prep.R | data prep, saves `dat_long_final`, weights |
-| 02-wide-format.R | wide data + two-stage IPCW weights, saves `df_grf` |
-| 03-causal-forest.R | causal forest estimation + ATE plot + diagnostics |
-| 04-heterogeneity.R | heterogeneity tests + qini plots |
-| 05-policy-tree.R | policy tree stability + policy workflow |
-| 06-positivity.R | positivity transition tables |
-| 07-tables.R | baseline/exposure/outcome tables |
-| 08-plots.R | timeline + individual plots |
+| src/00-setup.R | project setup (rv, dependencies) |
+| src/01-data-prep.R | data prep, saves `dat_long_final`, weights |
+| src/02-wide-format.R | wide data + two-stage IPCW weights, saves `df_grf` |
+| src/03-causal-forest.R | causal forest estimation + ATE plot + diagnostics |
+| src/04-heterogeneity.R | heterogeneity tests + qini plots |
+| src/05-policy-tree.R | policy tree stability + policy workflow |
+| src/06-positivity.R | positivity transition tables |
+| src/07-tables.R | baseline/exposure/outcome tables |
+| src/08-plots.R | timeline + individual plots |
 
 ## Configuration
 
@@ -455,7 +455,7 @@ Edit `study.toml` with your study-specific settings before running scripts.
 
 - R >= 4.0
 - rv package manager: https://github.com/A2-ai/rv
-- margot package (installed via rv in `00-setup.R`)
+- margot package (installed via rv in `src/00-setup.R`)
 "####,
         project_name = project_name,
         rv_section = rv_section
@@ -579,7 +579,7 @@ if (file.exists("rv/scripts/activate.R")) {
 }
 
 cli::cli_alert_success("setup complete - packages installed and rv synced")
-cli::cli_alert_info("next: edit study.toml then run 01-data-prep.R")
+cli::cli_alert_info("next: edit study.toml then run src/01-data-prep.R")
 "####
         .to_string()
     } else {
@@ -603,7 +603,7 @@ if (!require(margot, quietly = TRUE)) {
 }
 
 cli::cli_alert_success("setup complete - packages installed")
-cli::cli_alert_info("next: edit study.toml then run 01-data-prep.R")
+cli::cli_alert_info("next: edit study.toml then run src/01-data-prep.R")
 "####
         .to_string()
     }

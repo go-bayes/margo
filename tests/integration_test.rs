@@ -70,15 +70,15 @@ fn test_grf_creates_all_expected_files() {
         "study.toml",
         "README.md",
         ".gitignore",
-        "00-setup.R",
-        "01-data-prep.R",
-        "02-wide-format.R",
-        "03-causal-forest.R",
-        "04-heterogeneity.R",
-        "05-policy-tree.R",
-        "06-positivity.R",
-        "07-tables.R",
-        "08-plots.R",
+        "src/00-setup.R",
+        "src/01-data-prep.R",
+        "src/02-wide-format.R",
+        "src/03-causal-forest.R",
+        "src/04-heterogeneity.R",
+        "src/05-policy-tree.R",
+        "src/06-positivity.R",
+        "src/07-tables.R",
+        "src/08-plots.R",
     ];
 
     for file in expected_files {
@@ -179,11 +179,11 @@ fn test_grf_creates_setup_script_with_rv() {
         .output()
         .expect("failed to execute margo");
 
-    // check that 00-setup.R was created with rv content
-    let setup_path = tmp.path().join("00-setup.R");
-    assert!(setup_path.exists(), "00-setup.R should exist");
+    // check that src/00-setup.R was created with rv content
+    let setup_path = tmp.path().join("src").join("00-setup.R");
+    assert!(setup_path.exists(), "src/00-setup.R should exist");
 
-    let setup_content = fs::read_to_string(&setup_path).expect("failed to read 00-setup.R");
+    let setup_content = fs::read_to_string(&setup_path).expect("failed to read src/00-setup.R");
     assert!(
         setup_content.contains("run_rv(c(\"sync\"))"),
         "00-setup.R should contain rv sync by default"

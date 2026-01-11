@@ -119,6 +119,14 @@ pub fn grf_from_config(
     );
 
     for (filename, content) in files {
+        let path = Path::new(&filename);
+        if let Some(parent) = path.parent() {
+            if !parent.as_os_str().is_empty() {
+                fs::create_dir_all(parent).with_context(|| {
+                    format!("failed to create directory '{}'", parent.display())
+                })?;
+            }
+        }
         fs::write(&filename, content)
             .with_context(|| format!("failed to write '{}'", filename))?;
         println!("  {} {}", Color::Green.paint("wrote"), filename);
@@ -127,7 +135,7 @@ pub fn grf_from_config(
     println!();
     println!("{}", Color::Green.bold().paint("Project created successfully!"));
     println!();
-    println!("Scripts created in current directory");
+    println!("Scripts created in src/");
     println!(
         "Outputs will be written to: {}",
         Color::Cyan.paint(&push_mods_display)
@@ -140,7 +148,7 @@ pub fn grf_from_config(
     } else {
         println!("Next steps:");
         println!("  1. Review {} and adjust as needed", Color::Cyan.paint("study.toml"));
-        println!("  2. Run scripts in order: 01, 02, 03...");
+        println!("  2. Run scripts in order: src/01, src/02, src/03...");
         println!();
     }
 
@@ -201,6 +209,10 @@ fn grf_full(name: &str, from_path: Option<&str>, quiet: bool) -> Result<()> {
 
     for (filename, content) in files {
         let file_path = project_path.join(&filename);
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("failed to create directory '{}'", parent.display()))?;
+        }
 
         // use source config if --from was specified and this is study.toml
         let final_content = if filename == "study.toml" {
@@ -231,7 +243,7 @@ fn grf_full(name: &str, from_path: Option<&str>, quiet: bool) -> Result<()> {
         println!("Next steps:");
         println!("  1. cd {}", Color::Cyan.paint(name));
         println!("  2. Edit {} with your study configuration", Color::Cyan.paint("study.toml"));
-        println!("  3. Run scripts in order: 01, 02, 03...");
+        println!("  3. Run scripts in order: src/01, src/02, src/03...");
         println!();
     }
 
@@ -337,6 +349,14 @@ pub fn grf_event_from_config(
     );
 
     for (filename, content) in files {
+        let path = Path::new(&filename);
+        if let Some(parent) = path.parent() {
+            if !parent.as_os_str().is_empty() {
+                fs::create_dir_all(parent).with_context(|| {
+                    format!("failed to create directory '{}'", parent.display())
+                })?;
+            }
+        }
         fs::write(&filename, content)
             .with_context(|| format!("failed to write '{}'", filename))?;
         println!("  {} {}", Color::Green.paint("wrote"), filename);
@@ -345,7 +365,7 @@ pub fn grf_event_from_config(
     println!();
     println!("{}", Color::Green.bold().paint("Project created successfully!"));
     println!();
-    println!("Scripts created in current directory");
+    println!("Scripts created in src/");
     println!(
         "Outputs will be written to: {}",
         Color::Cyan.paint(&push_mods_display)
@@ -358,7 +378,7 @@ pub fn grf_event_from_config(
     } else {
         println!("Next steps:");
         println!("  1. Review {} and adjust wave definitions", Color::Cyan.paint("study.toml"));
-        println!("  2. Run scripts in order: 01, 02, 03...");
+        println!("  2. Run scripts in order: src/01, src/02, src/03...");
         println!();
     }
 

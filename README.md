@@ -47,14 +47,16 @@ my-study/
 ├── study.toml          # configuration (edit this first)
 ├── README.md           # workflow documentation
 ├── .gitignore          # excludes data files
-├── 01-data-prep.R      # data wrangling, binary exposure
-├── 02-wide-format.R    # long→wide, two-stage IPCW weights
-├── 03-causal-forest.R  # GRF estimation, ATE plots
-├── 04-heterogeneity.R  # RATE/AUTOC tests, qini plots
-├── 05-policy-tree.R    # policy tree stability
-├── 06-positivity.R     # transition tables
-├── 07-tables.R         # summary tables
-└── 08-plots.R          # visualisation
+└── src/
+    ├── 00-setup.R       # project setup (rv, dependencies)
+    ├── 01-data-prep.R   # data wrangling, binary exposure
+    ├── 02-wide-format.R # long→wide, two-stage IPCW weights
+    ├── 03-causal-forest.R # GRF estimation, ATE plots
+    ├── 04-heterogeneity.R # RATE/AUTOC tests, qini plots
+    ├── 05-policy-tree.R # policy tree stability
+    ├── 06-positivity.R  # transition tables
+    ├── 07-tables.R      # summary tables
+    └── 08-plots.R       # visualisation
 ```
 
 ### Configuration
@@ -82,7 +84,7 @@ vars = ["outcome_1", "outcome_2"]
 vars = ["age", "male_binary", "education_level_coarsen"]
 ```
 
-Then run scripts in order: `01-data-prep.R`, `02-wide-format.R`, etc.
+Then run scripts in order: `src/01-data-prep.R`, `src/02-wide-format.R`, etc.
 
 ## Requirements
 

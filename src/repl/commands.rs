@@ -317,11 +317,12 @@ fn handle_init_grf() -> Result<()> {
 
     // show project location (scripts go here)
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let cwd_display = cwd.display().to_string();
+    let scripts_path = cwd.join("src");
+    let scripts_display = scripts_path.display().to_string();
     println!(
         "  {} {}",
         theme::subtext0().paint("scripts:"),
-        theme::text().paint(shorten_path(&cwd_display))
+        theme::text().paint(shorten_path(&scripts_display))
     );
 
     // show output directory (model outputs go here)
@@ -356,7 +357,7 @@ fn handle_init_grf() -> Result<()> {
         &outcomes,
         templates.as_deref(),
         &output_path.display().to_string(),
-        &cwd_display,
+        &scripts_display,
     )? {
         println!("{}", theme::yellow().paint("cancelled"));
         return Ok(());
@@ -711,11 +712,12 @@ fn handle_init_grf_event() -> Result<()> {
 
     // show project location (scripts go here)
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let cwd_display = cwd.display().to_string();
+    let scripts_path = cwd.join("src");
+    let scripts_display = scripts_path.display().to_string();
     println!(
         "  {} {}",
         theme::subtext0().paint("scripts:"),
-        theme::text().paint(shorten_path(&cwd_display))
+        theme::text().paint(shorten_path(&scripts_display))
     );
 
     // show output directory
@@ -742,7 +744,7 @@ fn handle_init_grf_event() -> Result<()> {
         &baseline,
         outcome.as_deref(),
         &output_path.display().to_string(),
-        &cwd_display,
+        &scripts_display,
     )? {
         println!("{}", theme::yellow().paint("cancelled"));
         return Ok(());
@@ -2262,14 +2264,17 @@ fn check_existing_files() -> Result<bool> {
 
     let project_files = [
         "study.toml",
-        "01-data-prep.R",
-        "02-wide-format.R",
-        "03-causal-forest.R",
-        "04-heterogeneity.R",
-        "05-policy-tree.R",
-        "06-positivity.R",
-        "07-tables.R",
-        "08-plots.R",
+        "src/00-setup.R",
+        "src/01-data-prep.R",
+        "src/02-wide-format.R",
+        "src/03-causal-forest.R",
+        "src/04-heterogeneity.R",
+        "src/04-trajectory-plot.R",
+        "src/05-policy-tree.R",
+        "src/05-heterogeneity.R",
+        "src/06-positivity.R",
+        "src/07-tables.R",
+        "src/08-plots.R",
     ];
 
     let study_toml_exists = Path::new("study.toml").exists();

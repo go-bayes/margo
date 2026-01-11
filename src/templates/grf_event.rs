@@ -13,13 +13,13 @@ pub fn get_template_files(project_name: &str) -> Vec<(String, String)> {
         ("study.toml".to_string(), study_toml(project_name)),
         ("README.md".to_string(), readme(project_name)),
         (".gitignore".to_string(), gitignore()),
-        ("01-data-prep.R".to_string(), script_01()),
-        ("02-wide-format.R".to_string(), script_02()),
-        ("03-causal-forest.R".to_string(), script_03()),
-        ("04-trajectory-plot.R".to_string(), script_04()),
-        ("05-heterogeneity.R".to_string(), script_05()),
-        ("06-positivity.R".to_string(), script_06()),
-        ("07-tables.R".to_string(), script_07()),
+        ("src/01-data-prep.R".to_string(), script_01()),
+        ("src/02-wide-format.R".to_string(), script_02()),
+        ("src/03-causal-forest.R".to_string(), script_03()),
+        ("src/04-trajectory-plot.R".to_string(), script_04()),
+        ("src/05-heterogeneity.R".to_string(), script_05()),
+        ("src/06-positivity.R".to_string(), script_06()),
+        ("src/07-tables.R".to_string(), script_07()),
     ]
 }
 
@@ -47,13 +47,13 @@ pub fn get_template_files_with_config(
         )),
         ("README.md".to_string(), readme(project_name)),
         (".gitignore".to_string(), gitignore()),
-        ("01-data-prep.R".to_string(), script_01()),
-        ("02-wide-format.R".to_string(), script_02()),
-        ("03-causal-forest.R".to_string(), script_03()),
-        ("04-trajectory-plot.R".to_string(), script_04()),
-        ("05-heterogeneity.R".to_string(), script_05()),
-        ("06-positivity.R".to_string(), script_06()),
-        ("07-tables.R".to_string(), script_07()),
+        ("src/01-data-prep.R".to_string(), script_01()),
+        ("src/02-wide-format.R".to_string(), script_02()),
+        ("src/03-causal-forest.R".to_string(), script_03()),
+        ("src/04-trajectory-plot.R".to_string(), script_04()),
+        ("src/05-heterogeneity.R".to_string(), script_05()),
+        ("src/06-positivity.R".to_string(), script_06()),
+        ("src/07-tables.R".to_string(), script_07()),
     ]
 }
 
@@ -297,13 +297,13 @@ This template implements an **event study design** where:
 
 | Script | Purpose |
 |--------|---------|
-| 01-data-prep.R | data prep, identify eligible sample |
-| 02-wide-format.R | create analysis datasets for each outcome wave |
-| 03-causal-forest.R | fit causal forests for each wave, collect ATEs |
-| 04-trajectory-plot.R | visualise effect trajectory over time |
-| 05-heterogeneity.R | heterogeneity tests (optional, for selected waves) |
-| 06-positivity.R | check positivity at each wave |
-| 07-tables.R | summary statistics tables |
+| src/01-data-prep.R | data prep, identify eligible sample |
+| src/02-wide-format.R | create analysis datasets for each outcome wave |
+| src/03-causal-forest.R | fit causal forests for each wave, collect ATEs |
+| src/04-trajectory-plot.R | visualise effect trajectory over time |
+| src/05-heterogeneity.R | heterogeneity tests (optional, for selected waves) |
+| src/06-positivity.R | check positivity at each wave |
+| src/07-tables.R | summary statistics tables |
 
 ## Configuration
 

@@ -3,6 +3,7 @@
 2. Allow users to choose cut points for continuous vars when creating binary versions.
 3. Plan extensibility for time-varying confounders in the framework.
 4. Enable confounders from the same wave as exposure when exposure cannot affect them.
+5. Add a helper that warns when `paths.pull_data` points at a file instead of a directory.
 
 ## TUI planning
 1. Keep margo stable and plan a separate margot TUI track using the latest ratatui refactor.
