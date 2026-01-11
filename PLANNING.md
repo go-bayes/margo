@@ -1,4 +1,8 @@
 ## Short term questions
+Checklist:
+- If the exposure is included in outcome vars, remove it and alert the user.
+- Alert users that baseline exposure + baseline outcome variables are included by default during estimation (margot) unless excluded.
+
 1. Should we let users compile projects once settings are fixed, and accept harder debugging to reduce coding?
 2. Allow users to choose cut points for continuous vars when creating binary versions.
 3. Plan extensibility for time-varying confounders in the framework.

@@ -36,17 +36,32 @@ pub fn grf_from_config(
 
     // collect outcome variables from direct args and/or templates
     let mut outcome_vars: Vec<String> = Vec::new();
+    let mut direct_outcomes_filtered: Vec<String> = Vec::new();
+    let mut removed_exposure = false;
 
     // add direct outcomes first
     if let Some(direct) = direct_outcomes {
-        outcome_vars.extend(direct.iter().cloned());
+        for outcome in direct {
+            if outcome == exposure {
+                removed_exposure = true;
+                continue;
+            }
+            outcome_vars.push(outcome.clone());
+            direct_outcomes_filtered.push(outcome.clone());
+        }
     }
 
     // add outcomes from templates
     if let Some(templates) = outcome_templates {
         for name in templates {
             if let Some(template) = Config::load_outcomes(name) {
-                outcome_vars.extend(template.vars);
+                for outcome in template.vars {
+                    if outcome == exposure {
+                        removed_exposure = true;
+                        continue;
+                    }
+                    outcome_vars.push(outcome);
+                }
             } else {
                 println!(
                     "{} outcome template '{}' not found, skipping",
@@ -57,13 +72,19 @@ pub fn grf_from_config(
         }
     }
 
-    // generate project name from exposure + first outcome (or template name)
+    if removed_exposure {
+        println!(
+            "{} exposure '{}' removed from outcome variables",
+            Color::Yellow.bold().paint("warning:"),
+            exposure
+        );
+    }
+
+    // generate project name from exposure + first direct outcome (or template name)
     let project_name = custom_name.map(|s| s.to_string()).unwrap_or_else(|| {
-        if let Some(direct) = direct_outcomes {
-            if !direct.is_empty() {
-                // use first direct outcome in name
-                return format!("{}-{}", exposure, direct[0]);
-            }
+        if !direct_outcomes_filtered.is_empty() {
+            // use first direct outcome in name
+            return format!("{}-{}", exposure, direct_outcomes_filtered[0]);
         }
         if let Some(templates) = outcome_templates {
             if !templates.is_empty() {

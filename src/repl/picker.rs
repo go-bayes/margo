@@ -85,11 +85,27 @@ pub fn pick_exposure() -> Result<Option<String>> {
 /// pick multiple variables (for outcomes)
 /// note: vim mode disabled so j/k can be typed for filtering
 pub fn pick_outcomes() -> Result<Option<Vec<String>>> {
+    pick_multi(
+        "Select outcome variables:",
+        "↑↓ move, Space toggle, type to filter, Enter done",
+    )
+}
+
+/// pick multiple variables (for baselines)
+/// note: vim mode disabled so j/k can be typed for filtering
+pub fn pick_baseline_vars() -> Result<Option<Vec<String>>> {
+    pick_multi(
+        "Select baseline variables:",
+        "↑↓ move, Space toggle, type to filter, Enter done",
+    )
+}
+
+fn pick_multi(prompt: &str, help: &str) -> Result<Option<Vec<String>>> {
     let variables: Vec<&str> = VARIABLES.iter().copied().collect();
 
-    let result = MultiSelect::new("Select outcome variables:", variables)
+    let result = MultiSelect::new(prompt, variables)
         .with_page_size(15)
-        .with_help_message("↑↓ move, Space toggle, type to filter, Enter done")
+        .with_help_message(help)
         .with_render_config(catppuccin_config())
         .prompt_skippable()?;
 

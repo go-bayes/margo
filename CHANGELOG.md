@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.9] - 2026-01-12
+
+### Fixed
+- Baseline custom selection no longer reuses the outcome picker in the REPL
+
 ## [0.3.8] - 2026-01-11
 
 ### Added

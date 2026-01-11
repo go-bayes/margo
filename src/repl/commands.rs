@@ -155,7 +155,7 @@ fn handle_init_grf() -> Result<()> {
             }
             Some(m) if m.starts_with("custom") => {
                 // pick individual variables
-                match picker::pick_outcomes()? {
+                match picker::pick_baseline_vars()? {
                     Some(vars) if !vars.is_empty() => {
                         break ("custom".to_string(), Some(vars));
                     }
