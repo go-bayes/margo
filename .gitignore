@@ -18,6 +18,9 @@
 # rv
 rv/
 
+# rust build
+target/
+
 # IDE
 .Rproj.user/
 *.Rproj
