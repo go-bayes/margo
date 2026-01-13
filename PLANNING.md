@@ -2,6 +2,10 @@
 Checklist:
 - If the exposure is included in outcome vars, remove it and alert the user.
 - Alert users that baseline exposure + baseline outcome variables are included by default during estimation (margot) unless excluded.
+- add policy tree decision points?  -- outcomes to reverse? fairness exclusions for policy trees? 
+- subgroup analyses?  
+
+
 
 1. Should we let users compile projects once settings are fixed, and accept harder debugging to reduce coding?
 2. Allow users to choose cut points for continuous vars when creating binary versions.
