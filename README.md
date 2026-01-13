@@ -1,6 +1,6 @@
 # margo
 
-A CLI tool for scaffolding [margot](https://github.com/go-bayes/margot) causal inference projects.
+A TUI for scaffolding [margot](https://github.com/go-bayes/margot) causal inference projects.
 
 ## Installation
 
