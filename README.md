@@ -1,6 +1,6 @@
 # margo
 
-A TUI for scaffolding [margot](https://github.com/go-bayes/margot) causal inference projects.
+A terminal-first CLI and interactive REPL for scaffolding [margot](https://github.com/go-bayes/margot) causal inference projects.
 
 ## Installation
 
@@ -31,8 +31,11 @@ Once Rust is installed, run the `cargo install` command above.
 ## Usage
 
 ```bash
-# create a new GRF (Generalised Random Forests) project
-margo init grf my-study
+# launch interactive mode
+margo
+
+# create a new GRF (Generalised Random Forests) project from the CLI
+margo init grf church_attendance wellbeing life_satisfaction
 
 # show help
 margo --help
@@ -40,7 +43,7 @@ margo --help
 
 ## What it does
 
-`margo init grf <project-name>` creates a complete project scaffold:
+`margo init grf <exposure> [outcomes...]` creates a complete project scaffold:
 
 ```
 my-study/
@@ -48,7 +51,7 @@ my-study/
 ├── README.md           # workflow documentation
 ├── .gitignore          # excludes data files
 └── src/
-    ├── 00-setup.R       # project setup (rv, dependencies)
+    ├── 00-setup.R       # project setup (renv, dependencies)
     ├── 01-data-prep.R   # data wrangling, binary exposure
     ├── 02-wide-format.R # long→wide, two-stage IPCW weights
     ├── 03-causal-forest.R # GRF estimation, ATE plots
@@ -89,7 +92,9 @@ Then run scripts in order: `src/01-data-prep.R`, `src/02-wide-format.R`, etc.
 ## Requirements
 
 - R >= 4.0
-- margot package: `devtools::install_github("go-bayes/margot")`
+- renv package manager: https://rstudio.github.io/renv/
+
+Run `src/00-setup.R` to install `margot` and the project dependencies.
 
 ## Templates
 
@@ -138,19 +143,6 @@ margo init grf church_attendance wellbeing life_satisfaction
 margo init grf church_attendance wellbeing -n "nzavs-religion-study"
 ```
 
-### WHO mode (BMI/exercise variables)
-
-```bash
-# default: continuous (hlth_bmi, log_hours_exercise)
-margo init grf sleep quality -w default
-
-# categorical (bmi_cat, who_hours_exercise_cat)
-margo init grf diet weight -w cat
-
-# ordinal numeric (bmi_cat_num, who_hours_exercise_num)
-margo init grf stress anxiety -w num
-```
-
 ### Configuration management
 
 ```bash
@@ -193,8 +185,8 @@ This generates scripts that:
 ### Interactive mode
 
 ```bash
-# launch the terminal UI for guided project setup
-margo new
+# launch the interactive REPL for guided project setup
+margo
 ```
 
 ### Getting help

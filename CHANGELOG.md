@@ -5,6 +5,11 @@ Notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.11] - 2026-01-16
+
+### Fixed
+- Ensure renv settings are passed through GRF event scaffold generation
+
 ## [0.3.10] - 2026-01-16
 
 ### Added
@@ -15,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Tips copy now emphasises reviewing default paths and editing templates or config, and shows `/q` on startup
 - `/config` output now shows edit hints for `/config edit` and `/e config`
+- Project scaffolds now use renv by default (`use_renv`, with `use_rv` accepted for compatibility)
+- GRF event study scaffolds now include `src/00-setup.R` for renv setup
 
 ### Fixed
 - Remove exposure variables from outcome lists during REPL init and warn the user
