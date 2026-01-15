@@ -31,6 +31,14 @@ pub fn handle_slash(cmd: &str) -> Result<()> {
         "here" | "pwd" => cmd_here(),
         "home" | "~" => cmd_home(),
         "cd" => cmd_cd(args),
+        "init" => {
+            let mut full = String::from("init");
+            if !args.is_empty() {
+                full.push(' ');
+                full.push_str(&args.join(" "));
+            }
+            handle_init(&full)
+        }
         "e" | "o" => cmd_quick_edit(args),
         "refresh" | "r" => cmd_refresh(),
         _ => {
@@ -283,6 +291,22 @@ fn handle_init_grf() -> Result<()> {
         }
     }
 
+    let mut removed_exposure = false;
+    outcomes.retain(|outcome| {
+        let keep = outcome != &exposure;
+        if !keep {
+            removed_exposure = true;
+        }
+        keep
+    });
+    if removed_exposure {
+        println!(
+            "  {} exposure '{}' removed from outcome variables",
+            theme::yellow().paint("warning:"),
+            theme::text().paint(&exposure)
+        );
+    }
+
     // step 4: show summary and confirm
     println!();
     println!("  {}", theme::peach().paint("Project Summary"));
@@ -492,7 +516,9 @@ fn maybe_review_grf_details(
     if let Some(tpls) = templates {
         for name in tpls {
             if let Some(tpl) = Config::load_outcomes(name) {
-                print_vars_block(&format!("Outcome template: {}", name), &tpl.vars);
+                let mut vars = tpl.vars;
+                vars.retain(|var| var != exposure);
+                print_vars_block(&format!("Outcome template: {}", name), &vars);
             } else {
                 println!(
                     "  {} outcome template '{}' not found",
@@ -786,6 +812,7 @@ fn cmd_help() -> Result<()> {
     print_help_item("/config setup", "set default paths (pull_data, push_mods)");
     print_help_item("/config reset", "reset config to defaults");
     print_help_item("/config init", "create default config");
+    print_help_item("/init", "guided project setup");
     print_help_item("/templates, /t", "list all templates");
     print_help_item("/t outcomes", "list outcome templates");
     print_help_item("/t baselines", "list baseline templates");
@@ -796,16 +823,16 @@ fn cmd_help() -> Result<()> {
     print_help_item("/view [name]", "browse templates and their variables");
     print_help_item("/save <type> <name>", "create new template from variable picker");
     print_help_item("/theme, /th", "toggle or set theme");
-    print_help_item("/e, /o [name]", "quick edit template in $EDITOR");
+    print_help_item("/e, /o [name]", "quick edit template or config in $EDITOR");
     print_help_item("/here, /pwd", "show current directory");
     print_help_item("/home, /~", "go home + refresh");
     print_help_item("/cd <path>", "change directory");
     print_help_item("/refresh, /r", "clear + show welcome");
-    print_help_item("/quit, /q, q", "exit margo");
+    print_help_item("/q, /quit, q", "exit margo");
     println!();
 
     println!("  {}", theme::subtext1().paint("Init commands"));
-    print_help_item("init", "guided project setup");
+    print_help_item("init, /init", "guided project setup");
     print_help_item("init grf", "create grf project");
     print_help_item("init grf-event", "create grf event study");
     println!();
@@ -847,6 +874,15 @@ fn cmd_config(args: &[&str]) -> Result<()> {
                 "  {}: {}",
                 theme::subtext0().paint("config file"),
                 theme::text().paint(config_path.display().to_string())
+            );
+            println!(
+                "  {}: {}",
+                theme::subtext0().paint("edit"),
+                format!(
+                    "{} or {}",
+                    theme::sapphire().paint("/config edit"),
+                    theme::sapphire().paint("/e config")
+                )
             );
             println!();
 
@@ -2109,12 +2145,13 @@ fn cmd_picker() -> Result<()> {
     let commands = vec![
         "help         — show all commands",
         "config       — show/edit configuration",
+        "init (/init) — guided project setup",
         "templates    — list templates",
         "view         — browse template variables",
         "save         — create new template",
         "vars         — browse variables",
         "theme        — toggle light/dark",
-        "e            — edit template",
+        "e            — edit template or config",
         "here         — show current directory",
         "home         — go home + refresh",
         "cd           — change directory",
@@ -2157,8 +2194,18 @@ fn cmd_quick_edit(args: &[&str]) -> Result<()> {
             return Ok(());
         }
 
-        match picker::browse_templates("Select template to edit:", &all)? {
+        let mut choices = Vec::with_capacity(all.len() + 1);
+        choices.push("/config".to_string());
+        choices.extend(all);
+
+        match picker::browse_templates("Select template or config to edit:", &choices)? {
             Some(name) => {
+                if name == "/config" {
+                    Config::ensure_config_file()?;
+                    let config_path = Config::config_path();
+                    open_in_editor(&config_path.to_string_lossy())?;
+                    return Ok(());
+                }
                 // try outcomes first, then baselines
                 let path = if Config::outcomes_dir().join(format!("{}.toml", name)).exists() {
                     Config::outcomes_dir().join(format!("{}.toml", name))
@@ -2173,6 +2220,12 @@ fn cmd_quick_edit(args: &[&str]) -> Result<()> {
     }
 
     let name = args[0];
+    if name == "config" || name == "config.toml" {
+        Config::ensure_config_file()?;
+        let config_path = Config::config_path();
+        open_in_editor(&config_path.to_string_lossy())?;
+        return Ok(());
+    }
 
     // try outcomes first, then baselines
     let outcomes_path = Config::outcomes_dir().join(format!("{}.toml", name));

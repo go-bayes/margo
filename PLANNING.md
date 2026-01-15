@@ -1,7 +1,5 @@
 ## Short term questions
 Checklist:
-- If the exposure is included in outcome vars, remove it and alert the user.
-- Alert users that baseline exposure + baseline outcome variables are included by default during estimation (margot) unless excluded.
 - add policy tree decision points?  -- outcomes to reverse? fairness exclusions for policy trees? 
 - subgroup analyses?  
 

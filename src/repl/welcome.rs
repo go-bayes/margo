@@ -91,13 +91,13 @@ fn print_tips() {
         theme::overlay0().paint("─────────────────────────────────────────────")
     );
     print_tip("/help", "commands");
-    print_tip("/config", "set default paths");
+    print_tip("/config", "review default paths");
     print_tip("/vars", "browse variables");
-    print_tip("/e", "edit template");
-    print_tip("init", "scaffold project");
+    print_tip("/e", "edit templates or config");
+    print_tip("/init", "guided project setup");
     print_tip("/r", "refresh screen");
     print_tip("Esc", "go home");
-    print_tip("q", "quit");
+    print_tip("/q", "quit");
     println!();
 }
 

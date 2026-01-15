@@ -24,6 +24,11 @@ impl MargoHinter {
                 ("init grf-eve", "nt"),
                 ("init grf-even", "t"),
                 ("init grf-event", " — event study"),
+                // slash init
+                ("/in", "it"),
+                ("/ini", "t"),
+                ("/init", " — guided project setup"),
+                ("/init ", "grf | grf-event"),
                 // help
                 ("/h", "elp"),
                 ("/he", "lp"),
