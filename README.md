@@ -4,15 +4,7 @@ A terminal-first CLI and interactive REPL for scaffolding [margot](https://githu
 
 ## Installation
 
-### Install via cargo
-
-If you have Rust installed:
-
-```bash
-cargo install --git https://github.com/go-bayes/margo
-```
-
-### Installing Rust
+### If you don't have Rust
 
 If you don't have Rust, install it:
 
@@ -27,6 +19,16 @@ source ~/.cargo/env
 For Windows, download the installer from [rustup.rs](https://rustup.rs).
 
 Once Rust is installed, run the `cargo install` command above.
+
+
+### Install via cargo
+
+If you have Rust installed:
+
+```bash
+cargo install --git https://github.com/go-bayes/margo
+```
+
 
 ## Usage
 
