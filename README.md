@@ -1,6 +1,6 @@
 # margo
 
-A terminal-first CLI and interactive REPL for scaffolding [margot](https://github.com/go-bayes/margot) causal inference projects.
+A terminal user interface (tui) for scaffolding [margot](https://github.com/go-bayes/margot) causal inference projects.
 
 ## Installation
 
