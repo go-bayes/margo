@@ -1,0 +1,6 @@
+# variable metadata for /vars
+# format: variable_name<TAB>description
+variable	description
+age	respondent age in years
+agreeableness	hexaco agreeableness composite score
+education_level_coarsen	coarsened education attainment category

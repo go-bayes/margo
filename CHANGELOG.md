@@ -5,6 +5,21 @@ Notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.12] - 2026-03-02
+
+### Added
+- `/vars` metadata provider fallbacks in priority order: local files, boilerplate sources, then bptui sources
+- JSON metadata parsing for measure databases (including `boilerplate_unified.json` and `measures_db.json`)
+- Provider-specific environment overrides: `MARGO_BOILERPLATE_METADATA` and `MARGO_BPTUI_METADATA`
+
+### Changed
+- `/vars` metadata source output now includes provider context (`local`, `boilerplate`, `bptui`)
+- `/vars` missing-metadata hint now documents all supported metadata environment variables
+
+### Fixed
+- Metadata source borrow handling in `/vars` output to avoid partial move compile errors
+- `/vars` picker flow now supports Enter-to-add with repeated selection, then Esc to finish
+
 ## [0.3.11] - 2026-01-16
 
 ### Fixed

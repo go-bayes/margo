@@ -243,12 +243,12 @@ fn confirm_selection(vars: &[String], prompt: &str) -> Result<bool> {
     Ok(result.unwrap_or(false))
 }
 
-/// browse variables interactively (view-only, scrollable)
+/// browse variables interactively (single select per pass)
 /// note: vim mode disabled so j/k can be typed for filtering (e.g. "kessler", "job")
 pub fn browse_variables(prompt: &str, variables: &[&str]) -> Result<Option<String>> {
     let result = Select::new(prompt, variables.to_vec())
         .with_page_size(20)
-        .with_help_message("↑↓ scroll, type to filter, Enter select, Esc cancel")
+        .with_help_message("↑↓ scroll, type to filter, Enter select, Esc finish")
         .with_render_config(catppuccin_config())
         .prompt_skippable()?;
 

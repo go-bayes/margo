@@ -2051,9 +2051,89 @@ fn cmd_vars(args: &[&str]) -> Result<()> {
         format!("Variables matching '{}' ({} matches):", pattern, matches.len())
     };
 
-    let _ = picker::browse_variables(&prompt, &matches)?;
+    let mut selected_vars: Vec<String> = Vec::new();
+    let mut browse_prompt = prompt;
+
+    loop {
+        match picker::browse_variables(&browse_prompt, &matches)? {
+            Some(selected) => {
+                if !selected_vars.contains(&selected) {
+                    selected_vars.push(selected);
+                }
+                browse_prompt = "Select another variable (Esc to finish):".to_string();
+            }
+            None => break,
+        }
+    }
+
+    if !selected_vars.is_empty() {
+        print_variable_details(&selected_vars);
+    }
 
     Ok(())
+}
+
+fn print_variable_details(vars: &[String]) {
+    let metadata_source = crate::data::variable_metadata_source();
+
+    println!();
+    println!(
+        "  {} selected {} variable{}",
+        theme::green().paint("✓"),
+        theme::text().paint(vars.len().to_string()),
+        if vars.len() == 1 { "" } else { "s" }
+    );
+    println!();
+
+    if let Some(ref source) = metadata_source {
+        println!(
+            "  {} {}",
+            theme::subtext0().paint("metadata:"),
+            theme::overlay0().paint(source)
+        );
+        println!();
+    }
+
+    for (idx, var) in vars.iter().enumerate() {
+        let mut tokens = var.split('_');
+        let group = tokens.next().unwrap_or(var.as_str());
+        let token_count = 1 + tokens.count();
+        let description = crate::data::lookup_variable_description(var);
+
+        println!(
+            "  {} {}",
+            theme::overlay0().paint(format!("{:>3}.", idx + 1)),
+            theme::teal().paint(var.as_str())
+        );
+        println!(
+            "      {} {}   {} {}",
+            theme::subtext0().paint("group:"),
+            theme::text().paint(group),
+            theme::subtext0().paint("tokens:"),
+            theme::text().paint(token_count.to_string())
+        );
+        println!(
+            "      {} {}",
+            theme::subtext0().paint("description:"),
+            match description {
+                Some(text) => theme::text().paint(text),
+                None => theme::overlay0().paint("not available"),
+            }
+        );
+    }
+
+    if metadata_source.is_none() {
+        println!(
+            "  {} {}",
+            theme::subtext0().paint("tip:"),
+            theme::overlay0().paint(
+                "add storage/variable_metadata.tsv (name<TAB>description) or set MARGO_VAR_METADATA, MARGO_BOILERPLATE_METADATA, or MARGO_BPTUI_METADATA"
+            )
+        );
+        println!();
+    }
+
+    println!();
 }
 
 fn cmd_theme(args: &[&str]) -> Result<()> {
@@ -2149,7 +2229,7 @@ fn cmd_picker() -> Result<()> {
         "templates    — list templates",
         "view         — browse template variables",
         "save         — create new template",
-        "vars         — browse variables",
+        "vars         — browse and inspect variables",
         "theme        — toggle light/dark",
         "e            — edit template or config",
         "here         — show current directory",

@@ -11,6 +11,8 @@ Checklist:
 3. Plan extensibility for time-varying confounders in the framework (as part of TMLE/lmtp)
 4. Enable confounders from the same wave as exposure when exposure cannot affect them. (lmtp)
 5. Add a helper that warns when `paths.pull_data` points at a file instead of a directory.
+6. Add `/vars export-missing` to print variables with no metadata description.
+7. Add richer `/vars` metadata support (`label`, `scale`, `notes`) beyond a single description field.
 
 ## TUI planning (currently doubtful this is usesful, necesaary)
 1. Keep margo stable and plan a separate margot TUI track using the latest ratatui refactor.
