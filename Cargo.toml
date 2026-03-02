@@ -32,9 +32,6 @@ crossterm = "0.28"
 # hashing for template manifests
 sha2 = "0.10"
 
-# time handling
-time = "0.3"
-
 # fuzzy matching
 nucleo = "0.5"
 nucleo-matcher = "0.3"
