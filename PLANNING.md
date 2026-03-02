@@ -24,3 +24,56 @@ Checklist:
 6. Decide between fixed columns or flowing tiles to keep focus and keyboard navigation clear.
 7. Decide input style: list, search, or hybrid, and show defaults and overrides.
 8. Decide how selections write templates while preserving user edits and config preferences.
+
+## Measures workbench plan (margo-first; supersedes standalone bptui)
+1. Treat `margo` as the single interactive editor for measures metadata used by boilerplate report workflows, and avoid new runtime coupling to bptui internals.
+2. Define one canonical interchange schema for measures records (`name`, `description`, `reference`, `waves`, `keywords`, `items`, `standardised`, `standardised_date`, `label`, `scale`, `notes`), with strict field normalisation and stable ordering.
+3. Implement robust import adapters in `margo` for `boilerplate_unified.json`, `measures_db.json`, `measures_db.csv`, and `variable_metadata.tsv/csv`, preserving unknown fields where possible.
+4. Add write-safe export paths in `margo` with transactional save semantics (temp file + atomic replace), backup checkpoints, and deterministic formatting to reduce noisy diffs in git.
+5. Add a `measure` command group in `margo` REPL/CLI for list, find, edit, add, delete, validate, standardise, and bulk operations targeting boilerplate-compatible files.
+6. Add quality and completion utilities in `margo`: missing description report, missing core fields report, duplicate name detection, and normalisation warnings before save.
+7. Add schema-aware transforms for R workflows: label mapping generation, scale extraction, and notes/description harmonisation aligned with boilerplate expectations.
+8. Keep metadata lookup precedence in `/vars` as local project files first, then boilerplate, then bptui-compatible sources, with explicit source reporting for traceability.
+9. Migration track: provide a one-time import path from existing bptui JSON files into the canonical margo schema and document bptui deprecation for this workflow.
+10. Documentation and rollout: publish `margo` measure-workbench usage docs and examples showing end-to-end edit -> save -> boilerplate report generation.
+
+### `/measure` command design (REPL + CLI parity)
+1. `/measure load [path]` loads a measures source file (`boilerplate_unified.json`, `measures_db.json`, `measures_db.csv`, `variable_metadata.tsv/csv`); if omitted, use auto-discovery.
+2. `/measure source` prints active source file, format, record count, and dirty state.
+3. `/measure list [pattern]` lists measures with fuzzy filter and key fields (`name`, short description, scale/notes indicators).
+4. `/measure show <name>` prints full canonical record including passthrough fields.
+5. `/measure find <query>` jumps/selects next matching record for iterative editing.
+6. `/measure add <name>` creates a new canonical record scaffold.
+7. `/measure edit <name> <field> <value>` updates one field with schema-aware coercion and validation.
+8. `/measure edit-batch <field> <from> <to>` applies controlled replacements with preview.
+9. `/measure delete <name>` removes one record with confirmation.
+10. `/measure rename <old> <new>` renames a measure key while preserving content.
+11. `/measure validate` runs completeness and schema checks (missing description, duplicate names, malformed fields).
+12. `/measure standardise` applies normalisation rules (trim, case policy, stable field order, scale extraction helpers).
+13. `/measure export-missing [field]` prints measures missing required fields (default `description`).
+14. `/measure backup [label]` writes timestamped checkpoint before risky operations.
+15. `/measure save [path]` writes deterministic output using atomic replace and backup policy.
+16. `/measure diff` shows in-session changes since load to support review before save.
+17. `/measure import-bptui <path>` migrates legacy bptui JSON into canonical schema with migration report.
+18. `/measure help` prints command reference and workflow tips.
+
+### Staged implementation checklist
+1. Phase 1: schema and storage core.
+2. Implement canonical `MeasureRecord` model and parser/writer adapters.
+3. Add deterministic serialisation, passthrough-field retention, and atomic save utilities.
+4. Add in-memory session state (`loaded`, `dirty`, `source`, `history`).
+5. Phase 2: read and inspect workflow.
+6. Implement `/measure load`, `/measure source`, `/measure list`, `/measure show`, `/measure find`.
+7. Implement `/measure validate` and `/measure export-missing` with human-readable summaries.
+8. Phase 3: edit workflow.
+9. Implement `/measure add`, `/measure edit`, `/measure delete`, `/measure rename`.
+10. Add `/measure diff`, `/measure backup`, and `/measure save` with rollback safety.
+11. Phase 4: quality transforms.
+12. Implement `/measure standardise` and scale/notes harmonisation rules aligned to boilerplate expectations.
+13. Add batch edit operation with dry-run preview mode.
+14. Phase 5: migration and deprecation.
+15. Implement `/measure import-bptui` migration path and migration diagnostics.
+16. Document bptui deprecation timeline and margo-first migration guidance.
+17. Phase 6: docs and adoption.
+18. Add cookbook docs for `load -> edit -> validate -> save -> boilerplate report`.
+19. Add release notes and example fixtures for each supported format.
