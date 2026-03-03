@@ -59,6 +59,15 @@ impl MargoHinter {
                 ("/va", "rs"),
                 ("/var", "s"),
                 ("/vars ", "<pattern>"),
+                // measure workspace
+                ("/m", "easure"),
+                ("/me", "asure"),
+                ("/mea", "sure"),
+                ("/meas", "ure"),
+                ("/measu", "re"),
+                ("/measur", "e"),
+                ("/measure", " load | source | list | show"),
+                ("/measure ", "load <path> | source | list [pattern] | show <name>"),
                 // quit
                 ("/q", "uit"),
                 ("/qu", "it"),

@@ -4,6 +4,7 @@ use anyhow::{bail, Result};
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
 
 use crate::commands::init;
 use crate::config::Config;
@@ -27,6 +28,7 @@ pub fn handle_slash(cmd: &str) -> Result<()> {
         "view" => cmd_view(args),
         "save" => cmd_save(args),
         "vars" | "v" => cmd_vars(args),
+        "measure" | "measures" | "m" => cmd_measure(args),
         "theme" | "th" => cmd_theme(args),
         "here" | "pwd" => cmd_here(),
         "home" | "~" => cmd_home(),
@@ -53,6 +55,22 @@ pub fn handle_slash(cmd: &str) -> Result<()> {
             );
             Ok(())
         }
+    }
+}
+
+fn measure_workspace_cell() -> &'static Mutex<Option<crate::data::MeasureWorkspace>> {
+    static CELL: OnceLock<Mutex<Option<crate::data::MeasureWorkspace>>> = OnceLock::new();
+    CELL.get_or_init(|| Mutex::new(None))
+}
+
+fn format_measure_file_format(format: crate::data::MeasureFileFormat) -> &'static str {
+    match format {
+        crate::data::MeasureFileFormat::BoilerplateUnifiedJson => "boilerplate_unified.json",
+        crate::data::MeasureFileFormat::MeasuresDbJson => "measures_db.json",
+        crate::data::MeasureFileFormat::MeasuresDbCsv => "measures_db.csv",
+        crate::data::MeasureFileFormat::VariableMetadataTsv => "variable_metadata.tsv",
+        crate::data::MeasureFileFormat::VariableMetadataCsv => "variable_metadata.csv",
+        crate::data::MeasureFileFormat::Unknown => "unknown",
     }
 }
 
@@ -820,6 +838,11 @@ fn cmd_help() -> Result<()> {
     print_help_item("/t open <name>", "open template in $EDITOR");
     print_help_item("/t new <type> <name>", "create new template");
     print_help_item("/vars [pattern]", "fuzzy search variables");
+    print_help_item("/measure <subcommand>", "manage measures data sources");
+    print_help_item("/measure load [path]", "load measures file into workspace");
+    print_help_item("/measure source", "show loaded measures source");
+    print_help_item("/measure list [pattern]", "list measures in workspace");
+    print_help_item("/measure show <name>", "show full measure details");
     print_help_item("/view [name]", "browse templates and their variables");
     print_help_item("/save <type> <name>", "create new template from variable picker");
     print_help_item("/theme, /th", "toggle or set theme");
@@ -2073,6 +2096,348 @@ fn cmd_vars(args: &[&str]) -> Result<()> {
     Ok(())
 }
 
+fn cmd_measure(args: &[&str]) -> Result<()> {
+    let subcommand = args.first().copied().unwrap_or("");
+    match subcommand {
+        "" => {
+            println!();
+            println!("  {}", theme::peach().paint("Measure Commands"));
+            println!(
+                "  {}",
+                theme::overlay0().paint("─────────────────────────────────────────────")
+            );
+            println!(
+                "    {} {}",
+                theme::sapphire().paint("/measure load [path]"),
+                theme::subtext0().paint("load measures file")
+            );
+            println!(
+                "    {} {}",
+                theme::sapphire().paint("/measure source"),
+                theme::subtext0().paint("show current workspace source")
+            );
+            println!(
+                "    {} {}",
+                theme::sapphire().paint("/measure list [pattern]"),
+                theme::subtext0().paint("list loaded measures")
+            );
+            println!(
+                "    {} {}",
+                theme::sapphire().paint("/measure show <name>"),
+                theme::subtext0().paint("show full details for one measure")
+            );
+            println!();
+            Ok(())
+        }
+        "load" => cmd_measure_load(&args[1..]),
+        "source" => cmd_measure_source(),
+        "list" => cmd_measure_list(&args[1..]),
+        "show" => cmd_measure_show(&args[1..]),
+        _ => {
+            println!(
+                "{} unknown measure subcommand: {}",
+                theme::yellow().paint("warning:"),
+                theme::text().paint(subcommand)
+            );
+            println!(
+                "  try: {}",
+                theme::sapphire().paint("/measure load|source|list|show")
+            );
+            Ok(())
+        }
+    }
+}
+
+fn cmd_measure_load(args: &[&str]) -> Result<()> {
+    let path = if args.is_empty() {
+        auto_discover_measure_path().ok_or_else(|| {
+            anyhow::anyhow!(
+                "no measures file found. pass a path: /measure load <path>"
+            )
+        })?
+    } else {
+        PathBuf::from(args.join(" "))
+    };
+
+    let workspace = crate::data::MeasureWorkspace::load(&path)?;
+    let count = workspace.record_count();
+    let source = workspace.source().cloned();
+
+    let mut guard = measure_workspace_cell()
+        .lock()
+        .map_err(|_| anyhow::anyhow!("measure workspace lock poisoned"))?;
+    *guard = Some(workspace);
+
+    println!();
+    println!(
+        "  {} loaded {} measure{}",
+        theme::green().paint("✓"),
+        theme::text().paint(count.to_string()),
+        if count == 1 { "" } else { "s" }
+    );
+    if let Some(src) = source {
+        println!(
+            "  {} {} ({})",
+            theme::subtext0().paint("source:"),
+            theme::overlay0().paint(src.path.display().to_string()),
+            theme::overlay0().paint(format_measure_file_format(src.format))
+        );
+    }
+    println!();
+
+    Ok(())
+}
+
+fn cmd_measure_source() -> Result<()> {
+    let guard = measure_workspace_cell()
+        .lock()
+        .map_err(|_| anyhow::anyhow!("measure workspace lock poisoned"))?;
+    let Some(workspace) = guard.as_ref() else {
+        println!(
+            "  {} no measures workspace loaded",
+            theme::yellow().paint("note:")
+        );
+        println!(
+            "    {}",
+            theme::overlay0().paint("use /measure load <path>")
+        );
+        return Ok(());
+    };
+
+    println!();
+    println!("  {}", theme::peach().paint("Measures Source"));
+    println!(
+        "  {}",
+        theme::overlay0().paint("─────────────────────────────────────────────")
+    );
+    if let Some(source) = workspace.source() {
+        println!(
+            "  {} {}",
+            theme::subtext0().paint("path:"),
+            theme::text().paint(source.path.display().to_string())
+        );
+        println!(
+            "  {} {}",
+            theme::subtext0().paint("format:"),
+            theme::text().paint(format_measure_file_format(source.format))
+        );
+    } else {
+        println!(
+            "  {} {}",
+            theme::subtext0().paint("path:"),
+            theme::overlay0().paint("(none)")
+        );
+    }
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("records:"),
+        theme::text().paint(workspace.record_count().to_string())
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("dirty:"),
+        theme::text().paint(if workspace.is_dirty() { "true" } else { "false" })
+    );
+    println!();
+
+    Ok(())
+}
+
+fn cmd_measure_list(args: &[&str]) -> Result<()> {
+    let pattern = if args.is_empty() {
+        None
+    } else {
+        Some(args.join(" "))
+    };
+
+    let guard = measure_workspace_cell()
+        .lock()
+        .map_err(|_| anyhow::anyhow!("measure workspace lock poisoned"))?;
+    let Some(workspace) = guard.as_ref() else {
+        println!(
+            "  {} no measures workspace loaded",
+            theme::yellow().paint("note:")
+        );
+        println!(
+            "    {}",
+            theme::overlay0().paint("use /measure load <path>")
+        );
+        return Ok(());
+    };
+
+    let records = workspace.list(pattern.as_deref());
+    println!();
+    println!(
+        "  {} {} match{}",
+        theme::peach().paint("Measures"),
+        theme::text().paint(records.len().to_string()),
+        if records.len() == 1 { "" } else { "es" }
+    );
+    println!(
+        "  {}",
+        theme::overlay0().paint("─────────────────────────────────────────────")
+    );
+    if records.is_empty() {
+        println!("  {}", theme::overlay0().paint("(no matches)"));
+        println!();
+        return Ok(());
+    }
+
+    for record in records {
+        let desc = record
+            .description
+            .as_deref()
+            .unwrap_or("description not set");
+        println!(
+            "  {} {}",
+            theme::teal().paint(&record.name),
+            theme::overlay0().paint(short_measure_description(desc))
+        );
+    }
+    println!();
+
+    Ok(())
+}
+
+fn cmd_measure_show(args: &[&str]) -> Result<()> {
+    if args.is_empty() {
+        println!(
+            "{} missing measure name",
+            theme::red().paint("error:")
+        );
+        println!(
+            "  usage: {}",
+            theme::sapphire().paint("/measure show <name>")
+        );
+        return Ok(());
+    }
+
+    let name = args.join(" ");
+    let guard = measure_workspace_cell()
+        .lock()
+        .map_err(|_| anyhow::anyhow!("measure workspace lock poisoned"))?;
+    let Some(workspace) = guard.as_ref() else {
+        println!(
+            "  {} no measures workspace loaded",
+            theme::yellow().paint("note:")
+        );
+        println!(
+            "    {}",
+            theme::overlay0().paint("use /measure load <path>")
+        );
+        return Ok(());
+    };
+
+    let Some(record) = workspace.get(&name) else {
+        println!(
+            "{} measure not found: {}",
+            theme::yellow().paint("warning:"),
+            theme::text().paint(&name)
+        );
+        return Ok(());
+    };
+
+    println!();
+    println!(
+        "  {} {}",
+        theme::peach().paint("Measure"),
+        theme::teal().paint(&record.name)
+    );
+    println!(
+        "  {}",
+        theme::overlay0().paint("─────────────────────────────────────────────")
+    );
+    print_measure_field("description", record.description.as_deref());
+    print_measure_field("reference", record.reference.as_deref());
+    print_measure_field("waves", record.waves.as_deref());
+    print_measure_field("keywords", record.keywords.as_deref());
+    print_measure_field("label", record.label.as_deref());
+    print_measure_field("scale", record.scale.as_deref());
+    print_measure_field("notes", record.notes.as_deref());
+    print_measure_field("standardised_date", record.standardised_date.as_deref());
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("standardised:"),
+        theme::text().paint(
+            record
+                .standardised
+                .map(|value| if value { "true" } else { "false" })
+                .unwrap_or("(none)")
+        )
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("items:"),
+        theme::text().paint(record.items.len().to_string())
+    );
+    for item in &record.items {
+        println!(
+            "    {} {}",
+            theme::overlay0().paint("•"),
+            theme::text().paint(item)
+        );
+    }
+    if !record.passthrough.is_empty() {
+        let keys = record
+            .passthrough
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(", ");
+        println!(
+            "  {} {}",
+            theme::subtext0().paint("passthrough keys:"),
+            theme::overlay0().paint(keys)
+        );
+    }
+    println!();
+
+    Ok(())
+}
+
+fn print_measure_field(label: &str, value: Option<&str>) {
+    println!(
+        "  {} {}",
+        theme::subtext0().paint(format!("{label}:")),
+        match value {
+            Some(text) if !text.trim().is_empty() => theme::text().paint(text.to_string()),
+            _ => theme::overlay0().paint("(none)"),
+        }
+    );
+}
+
+fn short_measure_description(value: &str) -> String {
+    const LIMIT: usize = 72;
+    let trimmed = value.trim();
+    if trimmed.chars().count() <= LIMIT {
+        return trimmed.to_string();
+    }
+    let mut out = String::new();
+    for (idx, ch) in trimmed.chars().enumerate() {
+        if idx >= LIMIT {
+            break;
+        }
+        out.push(ch);
+    }
+    out.push('…');
+    out
+}
+
+fn auto_discover_measure_path() -> Option<PathBuf> {
+    let cwd = env::current_dir().ok()?;
+    let candidates = vec![
+        cwd.join("boilerplate_unified.json"),
+        cwd.join("measures_db.json"),
+        cwd.join("storage/variable_metadata.tsv"),
+        cwd.join("storage/variable_metadata.csv"),
+        cwd.join("storage/variables.tsv"),
+        cwd.join("storage/variables.csv"),
+        cwd.join("../bptui/boilerplate_unified.json"),
+        cwd.join("../boilerplate/boilerplate_unified.json"),
+    ];
+    candidates.into_iter().find(|path| path.exists())
+}
+
 fn print_variable_details(vars: &[String]) {
     let metadata_source = crate::data::variable_metadata_source();
 
@@ -2230,6 +2595,7 @@ fn cmd_picker() -> Result<()> {
         "view         — browse template variables",
         "save         — create new template",
         "vars         — browse and inspect variables",
+        "measure      — load/list/show measures workspace",
         "theme        — toggle light/dark",
         "e            — edit template or config",
         "here         — show current directory",
