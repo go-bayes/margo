@@ -68,6 +68,10 @@ impl MargoHinter {
                 ("/measur", "e"),
                 ("/measure", " load | source | list | show"),
                 ("/measure ", "load <path> | source | list [pattern] | show <name>"),
+                ("/measure v", "alidate"),
+                ("/measure validate", " — check duplicates and missing descriptions"),
+                ("/measure export", "-missing <field>"),
+                ("/measure export-missing", " [field]"),
                 // quit
                 ("/q", "uit"),
                 ("/qu", "it"),

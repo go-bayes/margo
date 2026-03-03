@@ -41,6 +41,8 @@ impl MargoCompleter {
                 "/measure source",
                 "/measure list",
                 "/measure show",
+                "/measure validate",
+                "/measure export-missing",
                 "/view",
                 "/save",
                 "/save outcomes",

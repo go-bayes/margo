@@ -843,6 +843,8 @@ fn cmd_help() -> Result<()> {
     print_help_item("/measure source", "show loaded measures source");
     print_help_item("/measure list [pattern]", "list measures in workspace");
     print_help_item("/measure show <name>", "show full measure details");
+    print_help_item("/measure validate", "run basic measures validation checks");
+    print_help_item("/measure export-missing [field]", "list measures missing a field");
     print_help_item("/view [name]", "browse templates and their variables");
     print_help_item("/save <type> <name>", "create new template from variable picker");
     print_help_item("/theme, /th", "toggle or set theme");
@@ -2126,6 +2128,16 @@ fn cmd_measure(args: &[&str]) -> Result<()> {
                 theme::sapphire().paint("/measure show <name>"),
                 theme::subtext0().paint("show full details for one measure")
             );
+            println!(
+                "    {} {}",
+                theme::sapphire().paint("/measure validate"),
+                theme::subtext0().paint("check duplicates and missing descriptions")
+            );
+            println!(
+                "    {} {}",
+                theme::sapphire().paint("/measure export-missing [field]"),
+                theme::subtext0().paint("list records missing a field")
+            );
             println!();
             Ok(())
         }
@@ -2133,6 +2145,8 @@ fn cmd_measure(args: &[&str]) -> Result<()> {
         "source" => cmd_measure_source(),
         "list" => cmd_measure_list(&args[1..]),
         "show" => cmd_measure_show(&args[1..]),
+        "validate" => cmd_measure_validate(),
+        "export-missing" => cmd_measure_export_missing(&args[1..]),
         _ => {
             println!(
                 "{} unknown measure subcommand: {}",
@@ -2141,7 +2155,7 @@ fn cmd_measure(args: &[&str]) -> Result<()> {
             );
             println!(
                 "  try: {}",
-                theme::sapphire().paint("/measure load|source|list|show")
+                theme::sapphire().paint("/measure load|source|list|show|validate|export-missing")
             );
             Ok(())
         }
@@ -2388,6 +2402,119 @@ fn cmd_measure_show(args: &[&str]) -> Result<()> {
             "  {} {}",
             theme::subtext0().paint("passthrough keys:"),
             theme::overlay0().paint(keys)
+        );
+    }
+    println!();
+
+    Ok(())
+}
+
+fn cmd_measure_validate() -> Result<()> {
+    let guard = measure_workspace_cell()
+        .lock()
+        .map_err(|_| anyhow::anyhow!("measure workspace lock poisoned"))?;
+    let Some(workspace) = guard.as_ref() else {
+        println!(
+            "  {} no measures workspace loaded",
+            theme::yellow().paint("note:")
+        );
+        println!(
+            "    {}",
+            theme::overlay0().paint("use /measure load <path>")
+        );
+        return Ok(());
+    };
+
+    let report = workspace.validate_basic();
+    println!();
+    println!("  {}", theme::peach().paint("Measure Validation"));
+    println!(
+        "  {}",
+        theme::overlay0().paint("─────────────────────────────────────────────")
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("duplicate names:"),
+        theme::text().paint(report.duplicate_names.len().to_string())
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("missing description:"),
+        theme::text().paint(report.missing_description.len().to_string())
+    );
+
+    if !report.duplicate_names.is_empty() {
+        println!(
+            "  {}",
+            theme::subtext1().paint("duplicates")
+        );
+        for name in &report.duplicate_names {
+            println!(
+                "    {} {}",
+                theme::overlay0().paint("•"),
+                theme::teal().paint(name)
+            );
+        }
+    }
+
+    if !report.missing_description.is_empty() {
+        println!(
+            "  {}",
+            theme::subtext1().paint("missing description")
+        );
+        for name in &report.missing_description {
+            println!(
+                "    {} {}",
+                theme::overlay0().paint("•"),
+                theme::teal().paint(name)
+            );
+        }
+    }
+    println!();
+
+    Ok(())
+}
+
+fn cmd_measure_export_missing(args: &[&str]) -> Result<()> {
+    let field = args.first().copied().unwrap_or("description");
+    let guard = measure_workspace_cell()
+        .lock()
+        .map_err(|_| anyhow::anyhow!("measure workspace lock poisoned"))?;
+    let Some(workspace) = guard.as_ref() else {
+        println!(
+            "  {} no measures workspace loaded",
+            theme::yellow().paint("note:")
+        );
+        println!(
+            "    {}",
+            theme::overlay0().paint("use /measure load <path>")
+        );
+        return Ok(());
+    };
+
+    let missing = workspace.export_missing(field);
+    println!();
+    println!(
+        "  {} {} {}",
+        theme::peach().paint("Missing"),
+        theme::teal().paint(field),
+        theme::peach().paint("values")
+    );
+    println!(
+        "  {}",
+        theme::overlay0().paint("─────────────────────────────────────────────")
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("count:"),
+        theme::text().paint(missing.len().to_string())
+    );
+
+    for name in &missing {
+        println!(
+            "    {} {}",
+            theme::overlay0().paint("•"),
+            theme::teal().paint(name)
         );
     }
     println!();
