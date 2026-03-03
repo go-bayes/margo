@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{anyhow, Result};
 use serde_json::{Map, Value};
@@ -232,6 +233,29 @@ pub fn new_measure_session_from_source(source: MeasureSourceInfo, records: Vec<M
         dirty: false,
         checkpoints: Vec::new(),
     }
+}
+
+pub fn render_measure_records_for_path(path: &Path, records: &[MeasureRecord]) -> Result<String> {
+    let format = infer_measure_file_format(path);
+    match format {
+        MeasureFileFormat::BoilerplateUnifiedJson => write_boilerplate_unified_records(records),
+        MeasureFileFormat::MeasuresDbJson => write_measures_db_records(records),
+        MeasureFileFormat::MeasuresDbCsv => write_variable_metadata_records(records, ','),
+        MeasureFileFormat::VariableMetadataTsv => write_variable_metadata_records(records, '\t'),
+        MeasureFileFormat::VariableMetadataCsv => write_variable_metadata_records(records, ','),
+        MeasureFileFormat::Unknown => write_measures_db_records(records),
+    }
+}
+
+pub fn save_measure_records_to_path(
+    path: &Path,
+    records: &[MeasureRecord],
+    create_backup: bool,
+) -> Result<MeasureSourceInfo> {
+    let rendered = render_measure_records_for_path(path, records)?;
+    write_text_atomically(path, &rendered, create_backup)?;
+    let format = infer_measure_file_format(path);
+    Ok(MeasureSourceInfo::new(path.to_path_buf(), format))
 }
 
 fn parse_records_by_format(content: &str, format: MeasureFileFormat) -> Result<Vec<MeasureRecord>> {
@@ -625,4 +649,50 @@ fn escape_delimited_value(value: &str, delimiter: char) -> String {
 
     let escaped = value.trim().replace('"', "\"\"");
     format!("\"{escaped}\"")
+}
+
+fn write_text_atomically(path: &Path, content: &str, create_backup: bool) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent)?;
+        }
+    }
+
+    if create_backup && path.exists() {
+        let backup_path = backup_path_for(path);
+        fs::copy(path, backup_path)?;
+    }
+
+    let tmp_path = temporary_path_for(path);
+    fs::write(&tmp_path, content)?;
+    fs::rename(&tmp_path, path)?;
+    Ok(())
+}
+
+fn backup_path_for(path: &Path) -> PathBuf {
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("measures");
+    let stamp = unix_timestamp_string();
+    let backup_name = format!("{file_name}.bak.{stamp}");
+    path.with_file_name(backup_name)
+}
+
+fn temporary_path_for(path: &Path) -> PathBuf {
+    let pid = std::process::id();
+    let stamp = unix_timestamp_string();
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("measures");
+    let tmp_name = format!("{file_name}.tmp.{pid}.{stamp}");
+    path.with_file_name(tmp_name)
+}
+
+fn unix_timestamp_string() -> String {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    now.as_secs().to_string()
 }
