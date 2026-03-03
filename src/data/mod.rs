@@ -1,9 +1,11 @@
 // bundled NZAVS variable names for fuzzy completion
 
+pub mod measure_workspace;
 pub mod measures;
 pub mod variable_metadata;
 pub mod variables;
 
+pub use measure_workspace::{MeasureValidationReport, MeasureWorkspace};
 pub use measures::{
     BoilerplateUnifiedJsonAdapter, MeasureAdapter, MeasureFileFormat, MeasureRecord,
     MeasureSessionState, MeasureSourceInfo, MeasuresDbJsonAdapter, VariableMetadataCsvAdapter,
