@@ -6,7 +6,8 @@ pub mod variables;
 
 pub use measures::{
     BoilerplateUnifiedJsonAdapter, MeasureAdapter, MeasureFileFormat, MeasureRecord,
-    MeasureSessionState, MeasureSourceInfo,
+    MeasureSessionState, MeasureSourceInfo, MeasuresDbJsonAdapter, VariableMetadataCsvAdapter,
+    VariableMetadataTsvAdapter,
 };
 pub use variable_metadata::{lookup_variable_description, variable_metadata_source};
 pub use variables::VARIABLES;
