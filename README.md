@@ -98,6 +98,11 @@ Then run scripts in order: `src/01-data-prep.R`, `src/02-wide-format.R`, etc.
 
 Run `src/00-setup.R` to install `margot` and the project dependencies.
 
+## Measures workspace docs
+
+- Quickstart: `docs/measures/quickstart.md`
+- Command reference: `docs/measures/commands.md`
+
 ## Templates
 
 | Template | Description | Status |
