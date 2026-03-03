@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Result};
 use serde_json::{Map, Value};
@@ -187,6 +188,79 @@ impl MeasureCheckpoint {
         Self {
             label: label.into(),
             records,
+        }
+    }
+}
+
+pub fn infer_measure_file_format(path: &Path) -> MeasureFileFormat {
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .unwrap_or_default();
+
+    if file_name == "boilerplate_unified.json" {
+        return MeasureFileFormat::BoilerplateUnifiedJson;
+    }
+    if file_name == "measures_db.json" {
+        return MeasureFileFormat::MeasuresDbJson;
+    }
+    if file_name == "variable_metadata.tsv" || file_name == "variables.tsv" {
+        return MeasureFileFormat::VariableMetadataTsv;
+    }
+    if file_name == "variable_metadata.csv" || file_name == "variables.csv" {
+        return MeasureFileFormat::VariableMetadataCsv;
+    }
+    if file_name.ends_with(".tsv") {
+        return MeasureFileFormat::VariableMetadataTsv;
+    }
+    if file_name.ends_with(".csv") {
+        return MeasureFileFormat::MeasuresDbCsv;
+    }
+    if file_name.ends_with(".json") {
+        return MeasureFileFormat::MeasuresDbJson;
+    }
+
+    MeasureFileFormat::Unknown
+}
+
+pub fn load_measure_records_from_path(path: &Path) -> Result<(MeasureSourceInfo, Vec<MeasureRecord>)> {
+    let raw = fs::read_to_string(path)?;
+    let format = infer_measure_file_format(path);
+    let records = parse_records_by_format(&raw, format)?;
+    Ok((MeasureSourceInfo::new(path.to_path_buf(), format), records))
+}
+
+pub fn new_measure_session_from_source(source: MeasureSourceInfo, records: Vec<MeasureRecord>) -> MeasureSessionState {
+    MeasureSessionState {
+        source: Some(source),
+        records,
+        dirty: false,
+        checkpoints: Vec::new(),
+    }
+}
+
+fn parse_records_by_format(content: &str, format: MeasureFileFormat) -> Result<Vec<MeasureRecord>> {
+    match format {
+        MeasureFileFormat::BoilerplateUnifiedJson => BoilerplateUnifiedJsonAdapter.read_records(content),
+        MeasureFileFormat::MeasuresDbJson => MeasuresDbJsonAdapter.read_records(content),
+        MeasureFileFormat::MeasuresDbCsv => parse_variable_metadata_records(content, ','),
+        MeasureFileFormat::VariableMetadataTsv => VariableMetadataTsvAdapter.read_records(content),
+        MeasureFileFormat::VariableMetadataCsv => VariableMetadataCsvAdapter.read_records(content),
+        MeasureFileFormat::Unknown => {
+            if let Ok(records) = BoilerplateUnifiedJsonAdapter.read_records(content) {
+                return Ok(records);
+            }
+            if let Ok(records) = MeasuresDbJsonAdapter.read_records(content) {
+                return Ok(records);
+            }
+            if let Ok(records) = VariableMetadataTsvAdapter.read_records(content) {
+                return Ok(records);
+            }
+            if let Ok(records) = VariableMetadataCsvAdapter.read_records(content) {
+                return Ok(records);
+            }
+            Err(anyhow!("unable to detect supported measure file format"))
         }
     }
 }
