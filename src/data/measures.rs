@@ -107,10 +107,8 @@ impl MeasureAdapter for BoilerplateUnifiedJsonAdapter {
         parse_boilerplate_unified_records(content)
     }
 
-    fn write_records(&self, _records: &[MeasureRecord]) -> Result<String> {
-        Err(anyhow!(
-            "boilerplate unified json writer is not implemented yet"
-        ))
+    fn write_records(&self, records: &[MeasureRecord]) -> Result<String> {
+        write_boilerplate_unified_records(records)
     }
 }
 
@@ -126,8 +124,8 @@ impl MeasureAdapter for MeasuresDbJsonAdapter {
         parse_measures_db_records(content)
     }
 
-    fn write_records(&self, _records: &[MeasureRecord]) -> Result<String> {
-        Err(anyhow!("measures db json writer is not implemented yet"))
+    fn write_records(&self, records: &[MeasureRecord]) -> Result<String> {
+        write_measures_db_records(records)
     }
 }
 
@@ -143,10 +141,8 @@ impl MeasureAdapter for VariableMetadataTsvAdapter {
         parse_variable_metadata_records(content, '\t')
     }
 
-    fn write_records(&self, _records: &[MeasureRecord]) -> Result<String> {
-        Err(anyhow!(
-            "variable metadata tsv writer is not implemented yet"
-        ))
+    fn write_records(&self, records: &[MeasureRecord]) -> Result<String> {
+        write_variable_metadata_records(records, '\t')
     }
 }
 
@@ -162,10 +158,8 @@ impl MeasureAdapter for VariableMetadataCsvAdapter {
         parse_variable_metadata_records(content, ',')
     }
 
-    fn write_records(&self, _records: &[MeasureRecord]) -> Result<String> {
-        Err(anyhow!(
-            "variable metadata csv writer is not implemented yet"
-        ))
+    fn write_records(&self, records: &[MeasureRecord]) -> Result<String> {
+        write_variable_metadata_records(records, ',')
     }
 }
 
@@ -263,6 +257,60 @@ fn parse_records_by_format(content: &str, format: MeasureFileFormat) -> Result<V
             Err(anyhow!("unable to detect supported measure file format"))
         }
     }
+}
+
+pub fn write_boilerplate_unified_records(records: &[MeasureRecord]) -> Result<String> {
+    let mut measures = Map::new();
+    let mut sorted = records.to_vec();
+    sorted.sort_by(|a, b| a.name.cmp(&b.name));
+
+    for record in sorted {
+        if record.name.trim().is_empty() {
+            continue;
+        }
+        measures.insert(record.name.clone(), measure_record_to_json_object(&record));
+    }
+
+    let mut root = Map::new();
+    root.insert("measures".to_string(), Value::Object(measures));
+    serde_json::to_string_pretty(&Value::Object(root)).map_err(Into::into)
+}
+
+pub fn write_measures_db_records(records: &[MeasureRecord]) -> Result<String> {
+    let mut root = Map::new();
+    let mut sorted = records.to_vec();
+    sorted.sort_by(|a, b| a.name.cmp(&b.name));
+
+    for record in sorted {
+        if record.name.trim().is_empty() {
+            continue;
+        }
+        root.insert(record.name.clone(), measure_record_to_json_object(&record));
+    }
+
+    serde_json::to_string_pretty(&Value::Object(root)).map_err(Into::into)
+}
+
+pub fn write_variable_metadata_records(records: &[MeasureRecord], delimiter: char) -> Result<String> {
+    let mut sorted = records.to_vec();
+    sorted.sort_by(|a, b| a.name.cmp(&b.name));
+
+    let sep = delimiter.to_string();
+    let mut lines = vec![format!("variable{sep}description")];
+
+    for record in sorted {
+        if record.name.trim().is_empty() {
+            continue;
+        }
+        let Some(description) = record.description.as_ref() else {
+            continue;
+        };
+        let escaped_name = escape_delimited_value(&record.name, delimiter);
+        let escaped_description = escape_delimited_value(description, delimiter);
+        lines.push(format!("{escaped_name}{sep}{escaped_description}"));
+    }
+
+    Ok(lines.join("\n") + "\n")
 }
 
 pub fn parse_boilerplate_unified_records(content: &str) -> Result<Vec<MeasureRecord>> {
@@ -367,6 +415,76 @@ fn parse_measure_entry(key: &str, value: &Value) -> MeasureRecord {
     }
 
     record
+}
+
+fn measure_record_to_json_object(record: &MeasureRecord) -> Value {
+    let mut obj = Map::new();
+
+    if let Some(value) = record.label.as_ref() {
+        if !value.trim().is_empty() {
+            obj.insert("name".to_string(), Value::String(value.trim().to_string()));
+        }
+    }
+    if let Some(value) = record.description.as_ref() {
+        if !value.trim().is_empty() {
+            obj.insert(
+                "description".to_string(),
+                Value::String(value.trim().to_string()),
+            );
+        }
+    }
+    if let Some(value) = record.reference.as_ref() {
+        if !value.trim().is_empty() {
+            obj.insert("reference".to_string(), Value::String(value.trim().to_string()));
+        }
+    }
+    if let Some(value) = record.waves.as_ref() {
+        if !value.trim().is_empty() {
+            obj.insert("waves".to_string(), Value::String(value.trim().to_string()));
+        }
+    }
+    if let Some(value) = record.keywords.as_ref() {
+        if !value.trim().is_empty() {
+            obj.insert("keywords".to_string(), Value::String(value.trim().to_string()));
+        }
+    }
+    if !record.items.is_empty() {
+        let items = record
+            .items
+            .iter()
+            .map(|item| Value::String(item.trim().to_string()))
+            .collect();
+        obj.insert("items".to_string(), Value::Array(items));
+    }
+    if let Some(value) = record.standardised {
+        obj.insert("standardised".to_string(), Value::Bool(value));
+    }
+    if let Some(value) = record.standardised_date.as_ref() {
+        if !value.trim().is_empty() {
+            obj.insert(
+                "standardised_date".to_string(),
+                Value::String(value.trim().to_string()),
+            );
+        }
+    }
+    if let Some(value) = record.scale.as_ref() {
+        if !value.trim().is_empty() {
+            obj.insert("scale".to_string(), Value::String(value.trim().to_string()));
+        }
+    }
+    if let Some(value) = record.notes.as_ref() {
+        if !value.trim().is_empty() {
+            obj.insert("notes".to_string(), Value::String(value.trim().to_string()));
+        }
+    }
+
+    for (key, value) in &record.passthrough {
+        if !obj.contains_key(key) {
+            obj.insert(key.clone(), value.clone());
+        }
+    }
+
+    Value::Object(obj)
 }
 
 fn read_opt_string(obj: &Map<String, Value>, field: &str) -> Option<String> {
@@ -497,4 +615,14 @@ fn split_delimited_line(line: &str, delimiter: char) -> Vec<String> {
 
     fields.push(current.trim().to_string());
     fields
+}
+
+fn escape_delimited_value(value: &str, delimiter: char) -> String {
+    let needs_quotes = value.contains(delimiter) || value.contains('"') || value.contains('\n');
+    if !needs_quotes {
+        return value.trim().to_string();
+    }
+
+    let escaped = value.trim().replace('"', "\"\"");
+    format!("\"{escaped}\"")
 }
