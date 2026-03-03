@@ -6,20 +6,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::{anyhow, Result};
 use serde_json::{Map, Value};
 
-pub const CANONICAL_MEASURE_FIELDS: &[&str] = &[
-    "name",
-    "description",
-    "reference",
-    "waves",
-    "keywords",
-    "items",
-    "standardised",
-    "standardised_date",
-    "label",
-    "scale",
-    "notes",
-];
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct MeasureRecord {
     pub name: String,
@@ -62,10 +48,6 @@ impl MeasureRecord {
             ..Self::default()
         }
     }
-
-    pub fn canonical_field_names() -> &'static [&'static str] {
-        CANONICAL_MEASURE_FIELDS
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -91,7 +73,6 @@ impl MeasureSourceInfo {
 }
 
 pub trait MeasureAdapter {
-    fn format(&self) -> MeasureFileFormat;
     fn read_records(&self, content: &str) -> Result<Vec<MeasureRecord>>;
     fn write_records(&self, records: &[MeasureRecord]) -> Result<String>;
 }
@@ -100,10 +81,6 @@ pub trait MeasureAdapter {
 pub struct BoilerplateUnifiedJsonAdapter;
 
 impl MeasureAdapter for BoilerplateUnifiedJsonAdapter {
-    fn format(&self) -> MeasureFileFormat {
-        MeasureFileFormat::BoilerplateUnifiedJson
-    }
-
     fn read_records(&self, content: &str) -> Result<Vec<MeasureRecord>> {
         parse_boilerplate_unified_records(content)
     }
@@ -117,10 +94,6 @@ impl MeasureAdapter for BoilerplateUnifiedJsonAdapter {
 pub struct MeasuresDbJsonAdapter;
 
 impl MeasureAdapter for MeasuresDbJsonAdapter {
-    fn format(&self) -> MeasureFileFormat {
-        MeasureFileFormat::MeasuresDbJson
-    }
-
     fn read_records(&self, content: &str) -> Result<Vec<MeasureRecord>> {
         parse_measures_db_records(content)
     }
@@ -134,10 +107,6 @@ impl MeasureAdapter for MeasuresDbJsonAdapter {
 pub struct VariableMetadataTsvAdapter;
 
 impl MeasureAdapter for VariableMetadataTsvAdapter {
-    fn format(&self) -> MeasureFileFormat {
-        MeasureFileFormat::VariableMetadataTsv
-    }
-
     fn read_records(&self, content: &str) -> Result<Vec<MeasureRecord>> {
         parse_variable_metadata_records(content, '\t')
     }
@@ -151,10 +120,6 @@ impl MeasureAdapter for VariableMetadataTsvAdapter {
 pub struct VariableMetadataCsvAdapter;
 
 impl MeasureAdapter for VariableMetadataCsvAdapter {
-    fn format(&self) -> MeasureFileFormat {
-        MeasureFileFormat::VariableMetadataCsv
-    }
-
     fn read_records(&self, content: &str) -> Result<Vec<MeasureRecord>> {
         parse_variable_metadata_records(content, ',')
     }
@@ -169,22 +134,6 @@ pub struct MeasureSessionState {
     pub source: Option<MeasureSourceInfo>,
     pub records: Vec<MeasureRecord>,
     pub dirty: bool,
-    pub checkpoints: Vec<MeasureCheckpoint>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct MeasureCheckpoint {
-    pub label: String,
-    pub records: Vec<MeasureRecord>,
-}
-
-impl MeasureCheckpoint {
-    pub fn new(label: impl Into<String>, records: Vec<MeasureRecord>) -> Self {
-        Self {
-            label: label.into(),
-            records,
-        }
-    }
 }
 
 pub fn infer_measure_file_format(path: &Path) -> MeasureFileFormat {
@@ -231,19 +180,18 @@ pub fn new_measure_session_from_source(source: MeasureSourceInfo, records: Vec<M
         source: Some(source),
         records,
         dirty: false,
-        checkpoints: Vec::new(),
     }
 }
 
 pub fn render_measure_records_for_path(path: &Path, records: &[MeasureRecord]) -> Result<String> {
     let format = infer_measure_file_format(path);
     match format {
-        MeasureFileFormat::BoilerplateUnifiedJson => write_boilerplate_unified_records(records),
-        MeasureFileFormat::MeasuresDbJson => write_measures_db_records(records),
-        MeasureFileFormat::MeasuresDbCsv => write_variable_metadata_records(records, ','),
-        MeasureFileFormat::VariableMetadataTsv => write_variable_metadata_records(records, '\t'),
-        MeasureFileFormat::VariableMetadataCsv => write_variable_metadata_records(records, ','),
-        MeasureFileFormat::Unknown => write_measures_db_records(records),
+        MeasureFileFormat::BoilerplateUnifiedJson => BoilerplateUnifiedJsonAdapter.write_records(records),
+        MeasureFileFormat::MeasuresDbJson => MeasuresDbJsonAdapter.write_records(records),
+        MeasureFileFormat::MeasuresDbCsv => VariableMetadataCsvAdapter.write_records(records),
+        MeasureFileFormat::VariableMetadataTsv => VariableMetadataTsvAdapter.write_records(records),
+        MeasureFileFormat::VariableMetadataCsv => VariableMetadataCsvAdapter.write_records(records),
+        MeasureFileFormat::Unknown => MeasuresDbJsonAdapter.write_records(records),
     }
 }
 

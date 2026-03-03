@@ -5,6 +5,20 @@ Notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.14] - 2026-03-03
+
+### Added
+- New measures workspace in the REPL via `/measure` commands for load, source, list, show, add, edit, rename, delete, save, diff, validate, and export-missing
+- Measures data adapters and IO utilities for `boilerplate_unified.json`, `measures_db.json`, and variable metadata TSV/CSV sources
+- Measures documentation: quickstart and command reference under `docs/measures/`
+
+### Changed
+- README now links to measures workspace documentation
+- Measures workspace now supports deterministic serialisation and source-aware format handling
+
+### Fixed
+- Removed unused measures-module scaffolding and re-exports to eliminate compile-time warnings in normal builds
+
 ## [0.3.13] - 2026-03-02
 
 ### Fixed

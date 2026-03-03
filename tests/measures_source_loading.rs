@@ -56,7 +56,6 @@ fn new_measure_session_from_source_starts_clean() {
 
     let session = new_measure_session_from_source(source, records);
     assert!(!session.dirty);
-    assert_eq!(session.checkpoints.len(), 0);
     assert!(session.source.is_some());
     assert_eq!(session.records.len(), 2);
 }
