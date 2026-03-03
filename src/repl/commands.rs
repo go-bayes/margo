@@ -847,6 +847,8 @@ fn cmd_help() -> Result<()> {
     print_help_item("/measure edit <name> <field> <value>", "edit one measure field");
     print_help_item("/measure rename <old> <new>", "rename a measure");
     print_help_item("/measure delete <name>", "delete a measure");
+    print_help_item("/measure save [path]", "save workspace (or to a new path)");
+    print_help_item("/measure diff", "show added/removed/changed measures");
     print_help_item("/measure validate", "run basic measures validation checks");
     print_help_item("/measure export-missing [field]", "list measures missing a field");
     print_help_item("/view [name]", "browse templates and their variables");
@@ -2154,6 +2156,16 @@ fn cmd_measure(args: &[&str]) -> Result<()> {
             );
             println!(
                 "    {} {}",
+                theme::sapphire().paint("/measure save [path]"),
+                theme::subtext0().paint("save current workspace")
+            );
+            println!(
+                "    {} {}",
+                theme::sapphire().paint("/measure diff"),
+                theme::subtext0().paint("show in-session changes")
+            );
+            println!(
+                "    {} {}",
                 theme::sapphire().paint("/measure validate"),
                 theme::subtext0().paint("check duplicates and missing descriptions")
             );
@@ -2173,6 +2185,8 @@ fn cmd_measure(args: &[&str]) -> Result<()> {
         "edit" => cmd_measure_edit(&args[1..]),
         "rename" => cmd_measure_rename(&args[1..]),
         "delete" | "rm" | "del" => cmd_measure_delete(&args[1..]),
+        "save" => cmd_measure_save(&args[1..]),
+        "diff" => cmd_measure_diff(),
         "validate" => cmd_measure_validate(),
         "export-missing" => cmd_measure_export_missing(&args[1..]),
         _ => {
@@ -2183,7 +2197,7 @@ fn cmd_measure(args: &[&str]) -> Result<()> {
             );
             println!(
                 "  try: {}",
-                theme::sapphire().paint("/measure load|source|list|show|add|edit|rename|delete|validate|export-missing")
+                theme::sapphire().paint("/measure load|source|list|show|add|edit|rename|delete|save|diff|validate|export-missing")
             );
             Ok(())
         }
@@ -2689,6 +2703,129 @@ fn cmd_measure_delete(args: &[&str]) -> Result<()> {
     Ok(())
 }
 
+fn cmd_measure_save(args: &[&str]) -> Result<()> {
+    let target_path = if args.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(args.join(" ")))
+    };
+
+    let mut guard = measure_workspace_cell()
+        .lock()
+        .map_err(|_| anyhow::anyhow!("measure workspace lock poisoned"))?;
+    let Some(workspace) = guard.as_mut() else {
+        println!(
+            "  {} no measures workspace loaded",
+            theme::yellow().paint("note:")
+        );
+        println!(
+            "    {}",
+            theme::overlay0().paint("use /measure load <path>")
+        );
+        return Ok(());
+    };
+
+    let source = workspace.save(target_path.as_deref())?;
+    println!();
+    println!(
+        "  {} saved measures workspace",
+        theme::green().paint("✓")
+    );
+    println!(
+        "  {} {} ({})",
+        theme::subtext0().paint("path:"),
+        theme::text().paint(source.path.display().to_string()),
+        theme::overlay0().paint(format_measure_file_format(source.format))
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("dirty:"),
+        theme::text().paint("false")
+    );
+    println!();
+
+    Ok(())
+}
+
+fn cmd_measure_diff() -> Result<()> {
+    let guard = measure_workspace_cell()
+        .lock()
+        .map_err(|_| anyhow::anyhow!("measure workspace lock poisoned"))?;
+    let Some(workspace) = guard.as_ref() else {
+        println!(
+            "  {} no measures workspace loaded",
+            theme::yellow().paint("note:")
+        );
+        println!(
+            "    {}",
+            theme::overlay0().paint("use /measure load <path>")
+        );
+        return Ok(());
+    };
+
+    let diff = workspace.diff_summary();
+    println!();
+    println!("  {}", theme::peach().paint("Measure Diff"));
+    println!(
+        "  {}",
+        theme::overlay0().paint("─────────────────────────────────────────────")
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("added:"),
+        theme::text().paint(diff.added.len().to_string())
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("removed:"),
+        theme::text().paint(diff.removed.len().to_string())
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("changed:"),
+        theme::text().paint(diff.changed.len().to_string())
+    );
+
+    if diff.added.is_empty() && diff.removed.is_empty() && diff.changed.is_empty() {
+        println!("  {}", theme::overlay0().paint("(no changes)"));
+        println!();
+        return Ok(());
+    }
+
+    if !diff.added.is_empty() {
+        println!("  {}", theme::subtext1().paint("added"));
+        for name in &diff.added {
+            println!(
+                "    {} {}",
+                theme::overlay0().paint("•"),
+                theme::teal().paint(name)
+            );
+        }
+    }
+    if !diff.removed.is_empty() {
+        println!("  {}", theme::subtext1().paint("removed"));
+        for name in &diff.removed {
+            println!(
+                "    {} {}",
+                theme::overlay0().paint("•"),
+                theme::teal().paint(name)
+            );
+        }
+    }
+    if !diff.changed.is_empty() {
+        println!("  {}", theme::subtext1().paint("changed"));
+        for name in &diff.changed {
+            println!(
+                "    {} {}",
+                theme::overlay0().paint("•"),
+                theme::teal().paint(name)
+            );
+        }
+    }
+    println!();
+    Ok(())
+}
+
 fn cmd_measure_export_missing(args: &[&str]) -> Result<()> {
     let field = args.first().copied().unwrap_or("description");
     let guard = measure_workspace_cell()
@@ -2936,7 +3073,7 @@ fn cmd_picker() -> Result<()> {
         "view         — browse template variables",
         "save         — create new template",
         "vars         — browse and inspect variables",
-        "measure      — load/list/edit/validate measures workspace",
+        "measure      — load/list/edit/save/diff/validate measures",
         "theme        — toggle light/dark",
         "e            — edit template or config",
         "here         — show current directory",

@@ -4,19 +4,27 @@ use std::path::Path;
 use anyhow::{anyhow, Result};
 
 use super::measures::{
-    load_measure_records_from_path, new_measure_session_from_source, MeasureRecord,
-    MeasureSessionState, MeasureSourceInfo,
+    load_measure_records_from_path, new_measure_session_from_source, save_measure_records_to_path,
+    MeasureRecord, MeasureSessionState, MeasureSourceInfo,
 };
 
 #[derive(Debug, Clone, Default)]
 pub struct MeasureWorkspace {
     pub session: MeasureSessionState,
+    initial_records: Vec<MeasureRecord>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MeasureValidationReport {
     pub duplicate_names: Vec<String>,
     pub missing_description: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MeasureDiffSummary {
+    pub added: Vec<String>,
+    pub removed: Vec<String>,
+    pub changed: Vec<String>,
 }
 
 impl MeasureWorkspace {
@@ -26,8 +34,10 @@ impl MeasureWorkspace {
     }
 
     pub fn from_source(source: MeasureSourceInfo, records: Vec<MeasureRecord>) -> Self {
+        let initial_records = records.clone();
         Self {
             session: new_measure_session_from_source(source, records),
+            initial_records,
         }
     }
 
@@ -267,6 +277,66 @@ impl MeasureWorkspace {
             duplicate_names,
             missing_description,
         }
+    }
+
+    pub fn diff_summary(&self) -> MeasureDiffSummary {
+        let mut initial_map: HashMap<String, &MeasureRecord> = HashMap::new();
+        let mut current_map: HashMap<String, &MeasureRecord> = HashMap::new();
+
+        for record in &self.initial_records {
+            initial_map.insert(record.name.clone(), record);
+        }
+        for record in &self.session.records {
+            current_map.insert(record.name.clone(), record);
+        }
+
+        let mut added = Vec::new();
+        let mut removed = Vec::new();
+        let mut changed = Vec::new();
+
+        for (name, current) in &current_map {
+            match initial_map.get(name) {
+                None => added.push(name.clone()),
+                Some(initial) if *initial != *current => changed.push(name.clone()),
+                _ => {}
+            }
+        }
+
+        for name in initial_map.keys() {
+            if !current_map.contains_key(name) {
+                removed.push(name.clone());
+            }
+        }
+
+        added.sort();
+        removed.sort();
+        changed.sort();
+
+        MeasureDiffSummary {
+            added,
+            removed,
+            changed,
+        }
+    }
+
+    pub fn save(&mut self, path: Option<&Path>) -> Result<MeasureSourceInfo> {
+        let target_path = match path {
+            Some(path) => path.to_path_buf(),
+            None => {
+                let source = self
+                    .session
+                    .source
+                    .as_ref()
+                    .ok_or_else(|| anyhow!("no source loaded; provide path: /measure save <path>"))?;
+                source.path.clone()
+            }
+        };
+
+        let source = save_measure_records_to_path(&target_path, &self.session.records, true)?;
+        self.session.source = Some(source.clone());
+        self.session.dirty = false;
+        self.initial_records = self.session.records.clone();
+        Ok(source)
     }
 }
 

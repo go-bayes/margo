@@ -45,6 +45,8 @@ impl MargoCompleter {
                 "/measure edit",
                 "/measure rename",
                 "/measure delete",
+                "/measure save",
+                "/measure diff",
                 "/measure validate",
                 "/measure export-missing",
                 "/view",
