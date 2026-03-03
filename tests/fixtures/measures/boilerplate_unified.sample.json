@@ -1,0 +1,33 @@
+{
+  "measures": {
+    "trust_science": {
+      "name": "trust in science scale",
+      "description": "trust in science was measured with a short validated scale.",
+      "reference": "smith2024",
+      "waves": "1-3",
+      "keywords": "trust|science|institutions",
+      "items": [
+        "i trust scientists to tell the truth.",
+        "scientific findings are reliable."
+      ],
+      "standardised": true,
+      "standardised_date": "2026-03-02",
+      "label": "Trust in science",
+      "scale": "1-7",
+      "notes": "higher scores indicate greater trust.",
+      "custom_field": "preserve-me"
+    },
+    "social_cohesion": {
+      "name": "social cohesion index",
+      "description": "social cohesion was measured using community belonging items.",
+      "waves": "2-4",
+      "keywords": "community|belonging",
+      "items": [
+        "i feel i belong in my neighbourhood."
+      ]
+    }
+  },
+  "methods": {
+    "placeholder": "fixture-only"
+  }
+}

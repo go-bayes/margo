@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use anyhow::Result;
-use serde_json::Value;
+use anyhow::{anyhow, Result};
+use serde_json::{Map, Value};
 
 pub const CANONICAL_MEASURE_FIELDS: &[&str] = &[
     "name",
@@ -94,6 +94,25 @@ pub trait MeasureAdapter {
     fn write_records(&self, records: &[MeasureRecord]) -> Result<String>;
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct BoilerplateUnifiedJsonAdapter;
+
+impl MeasureAdapter for BoilerplateUnifiedJsonAdapter {
+    fn format(&self) -> MeasureFileFormat {
+        MeasureFileFormat::BoilerplateUnifiedJson
+    }
+
+    fn read_records(&self, content: &str) -> Result<Vec<MeasureRecord>> {
+        parse_boilerplate_unified_records(content)
+    }
+
+    fn write_records(&self, _records: &[MeasureRecord]) -> Result<String> {
+        Err(anyhow!(
+            "boilerplate unified json writer is not implemented yet"
+        ))
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct MeasureSessionState {
     pub source: Option<MeasureSourceInfo>,
@@ -115,4 +134,109 @@ impl MeasureCheckpoint {
             records,
         }
     }
+}
+
+pub fn parse_boilerplate_unified_records(content: &str) -> Result<Vec<MeasureRecord>> {
+    let parsed: Value = serde_json::from_str(content)?;
+    let root = parsed
+        .as_object()
+        .ok_or_else(|| anyhow!("expected top-level json object"))?;
+
+    let measures_value = root
+        .get("measures")
+        .ok_or_else(|| anyhow!("expected 'measures' key in unified json"))?;
+    let measures_obj = measures_value
+        .as_object()
+        .ok_or_else(|| anyhow!("expected 'measures' to be a json object"))?;
+
+    let mut records = Vec::new();
+
+    for (key, value) in measures_obj {
+        let mut record = MeasureRecord::new(key.trim().to_string());
+
+        if let Some(obj) = value.as_object() {
+            record.description = read_opt_string(obj, "description");
+            record.reference = read_opt_string(obj, "reference");
+            record.waves = read_opt_string(obj, "waves");
+            record.keywords = read_opt_string(obj, "keywords");
+            record.items = read_items(obj.get("items"));
+            record.standardised = read_opt_bool(obj, "standardised");
+            record.standardised_date = read_opt_string(obj, "standardised_date");
+            record.label =
+                read_opt_string(obj, "label").or_else(|| read_opt_string(obj, "name"));
+            record.scale = read_opt_string(obj, "scale");
+            record.notes = read_opt_string(obj, "notes");
+            record.passthrough = collect_passthrough_fields(obj);
+        } else if let Some(text) = value.as_str() {
+            let text = text.trim();
+            if !text.is_empty() {
+                record.description = Some(text.to_string());
+            }
+        }
+
+        if !record.name.is_empty() {
+            records.push(record);
+        }
+    }
+
+    records.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(records)
+}
+
+fn read_opt_string(obj: &Map<String, Value>, field: &str) -> Option<String> {
+    obj.get(field)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn read_opt_bool(obj: &Map<String, Value>, field: &str) -> Option<bool> {
+    obj.get(field).and_then(Value::as_bool)
+}
+
+fn read_items(value: Option<&Value>) -> Vec<String> {
+    match value {
+        Some(Value::Array(items)) => items
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+            .map(ToString::to_string)
+            .collect(),
+        Some(Value::String(raw)) => raw
+            .split('|')
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+            .map(ToString::to_string)
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn collect_passthrough_fields(obj: &Map<String, Value>) -> BTreeMap<String, Value> {
+    let mut passthrough = BTreeMap::new();
+    for (key, value) in obj {
+        if !is_known_source_field(key) {
+            passthrough.insert(key.clone(), value.clone());
+        }
+    }
+    passthrough
+}
+
+fn is_known_source_field(field: &str) -> bool {
+    matches!(
+        field,
+        "name"
+            | "description"
+            | "reference"
+            | "waves"
+            | "keywords"
+            | "items"
+            | "standardised"
+            | "standardised_date"
+            | "label"
+            | "scale"
+            | "notes"
+    )
 }

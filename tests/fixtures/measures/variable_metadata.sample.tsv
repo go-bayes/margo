@@ -1,0 +1,4 @@
+variable	description
+trust_science	trust in science summary score.
+social_cohesion	social cohesion summary score.
+daily_stress	daily stress rating (higher means more stress).
