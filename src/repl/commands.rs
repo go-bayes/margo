@@ -843,6 +843,10 @@ fn cmd_help() -> Result<()> {
     print_help_item("/measure source", "show loaded measures source");
     print_help_item("/measure list [pattern]", "list measures in workspace");
     print_help_item("/measure show <name>", "show full measure details");
+    print_help_item("/measure add <name>", "add a new measure record");
+    print_help_item("/measure edit <name> <field> <value>", "edit one measure field");
+    print_help_item("/measure rename <old> <new>", "rename a measure");
+    print_help_item("/measure delete <name>", "delete a measure");
     print_help_item("/measure validate", "run basic measures validation checks");
     print_help_item("/measure export-missing [field]", "list measures missing a field");
     print_help_item("/view [name]", "browse templates and their variables");
@@ -2130,6 +2134,26 @@ fn cmd_measure(args: &[&str]) -> Result<()> {
             );
             println!(
                 "    {} {}",
+                theme::sapphire().paint("/measure add <name>"),
+                theme::subtext0().paint("add a new measure record")
+            );
+            println!(
+                "    {} {}",
+                theme::sapphire().paint("/measure edit <name> <field> <value>"),
+                theme::subtext0().paint("edit one field on a measure")
+            );
+            println!(
+                "    {} {}",
+                theme::sapphire().paint("/measure rename <old> <new>"),
+                theme::subtext0().paint("rename a measure")
+            );
+            println!(
+                "    {} {}",
+                theme::sapphire().paint("/measure delete <name>"),
+                theme::subtext0().paint("delete a measure")
+            );
+            println!(
+                "    {} {}",
                 theme::sapphire().paint("/measure validate"),
                 theme::subtext0().paint("check duplicates and missing descriptions")
             );
@@ -2145,6 +2169,10 @@ fn cmd_measure(args: &[&str]) -> Result<()> {
         "source" => cmd_measure_source(),
         "list" => cmd_measure_list(&args[1..]),
         "show" => cmd_measure_show(&args[1..]),
+        "add" => cmd_measure_add(&args[1..]),
+        "edit" => cmd_measure_edit(&args[1..]),
+        "rename" => cmd_measure_rename(&args[1..]),
+        "delete" | "rm" | "del" => cmd_measure_delete(&args[1..]),
         "validate" => cmd_measure_validate(),
         "export-missing" => cmd_measure_export_missing(&args[1..]),
         _ => {
@@ -2155,7 +2183,7 @@ fn cmd_measure(args: &[&str]) -> Result<()> {
             );
             println!(
                 "  try: {}",
-                theme::sapphire().paint("/measure load|source|list|show|validate|export-missing")
+                theme::sapphire().paint("/measure load|source|list|show|add|edit|rename|delete|validate|export-missing")
             );
             Ok(())
         }
@@ -2475,6 +2503,192 @@ fn cmd_measure_validate() -> Result<()> {
     Ok(())
 }
 
+fn cmd_measure_add(args: &[&str]) -> Result<()> {
+    if args.is_empty() {
+        println!(
+            "{} missing measure name",
+            theme::red().paint("error:")
+        );
+        println!(
+            "  usage: {}",
+            theme::sapphire().paint("/measure add <name>")
+        );
+        return Ok(());
+    }
+    let name = args.join(" ");
+
+    let mut guard = measure_workspace_cell()
+        .lock()
+        .map_err(|_| anyhow::anyhow!("measure workspace lock poisoned"))?;
+    let Some(workspace) = guard.as_mut() else {
+        println!(
+            "  {} no measures workspace loaded",
+            theme::yellow().paint("note:")
+        );
+        println!(
+            "    {}",
+            theme::overlay0().paint("use /measure load <path>")
+        );
+        return Ok(());
+    };
+
+    workspace.add(&name)?;
+    println!();
+    println!(
+        "  {} added {}",
+        theme::green().paint("✓"),
+        theme::teal().paint(name)
+    );
+    println!(
+        "  {} {}",
+        theme::subtext0().paint("records:"),
+        theme::text().paint(workspace.record_count().to_string())
+    );
+    println!();
+    Ok(())
+}
+
+fn cmd_measure_edit(args: &[&str]) -> Result<()> {
+    if args.len() < 3 {
+        println!(
+            "{} missing arguments",
+            theme::red().paint("error:")
+        );
+        println!(
+            "  usage: {}",
+            theme::sapphire().paint("/measure edit <name> <field> <value>")
+        );
+        return Ok(());
+    }
+
+    let name = args[0];
+    let field = args[1];
+    let value = args[2..].join(" ");
+
+    let mut guard = measure_workspace_cell()
+        .lock()
+        .map_err(|_| anyhow::anyhow!("measure workspace lock poisoned"))?;
+    let Some(workspace) = guard.as_mut() else {
+        println!(
+            "  {} no measures workspace loaded",
+            theme::yellow().paint("note:")
+        );
+        println!(
+            "    {}",
+            theme::overlay0().paint("use /measure load <path>")
+        );
+        return Ok(());
+    };
+
+    workspace.edit_field(name, field, &value)?;
+    println!();
+    println!(
+        "  {} updated {}.{}",
+        theme::green().paint("✓"),
+        theme::teal().paint(name),
+        theme::teal().paint(field)
+    );
+    println!();
+    Ok(())
+}
+
+fn cmd_measure_rename(args: &[&str]) -> Result<()> {
+    if args.len() < 2 {
+        println!(
+            "{} missing arguments",
+            theme::red().paint("error:")
+        );
+        println!(
+            "  usage: {}",
+            theme::sapphire().paint("/measure rename <old> <new>")
+        );
+        return Ok(());
+    }
+
+    let old_name = args[0];
+    let new_name = args[1];
+
+    let mut guard = measure_workspace_cell()
+        .lock()
+        .map_err(|_| anyhow::anyhow!("measure workspace lock poisoned"))?;
+    let Some(workspace) = guard.as_mut() else {
+        println!(
+            "  {} no measures workspace loaded",
+            theme::yellow().paint("note:")
+        );
+        println!(
+            "    {}",
+            theme::overlay0().paint("use /measure load <path>")
+        );
+        return Ok(());
+    };
+
+    workspace.rename(old_name, new_name)?;
+    println!();
+    println!(
+        "  {} renamed {} -> {}",
+        theme::green().paint("✓"),
+        theme::teal().paint(old_name),
+        theme::teal().paint(new_name)
+    );
+    println!();
+    Ok(())
+}
+
+fn cmd_measure_delete(args: &[&str]) -> Result<()> {
+    if args.is_empty() {
+        println!(
+            "{} missing measure name",
+            theme::red().paint("error:")
+        );
+        println!(
+            "  usage: {}",
+            theme::sapphire().paint("/measure delete <name>")
+        );
+        return Ok(());
+    }
+
+    let name = args.join(" ");
+
+    let mut guard = measure_workspace_cell()
+        .lock()
+        .map_err(|_| anyhow::anyhow!("measure workspace lock poisoned"))?;
+    let Some(workspace) = guard.as_mut() else {
+        println!(
+            "  {} no measures workspace loaded",
+            theme::yellow().paint("note:")
+        );
+        println!(
+            "    {}",
+            theme::overlay0().paint("use /measure load <path>")
+        );
+        return Ok(());
+    };
+
+    let removed = workspace.delete(&name);
+    println!();
+    if removed {
+        println!(
+            "  {} deleted {}",
+            theme::green().paint("✓"),
+            theme::teal().paint(name)
+        );
+        println!(
+            "  {} {}",
+            theme::subtext0().paint("records:"),
+            theme::text().paint(workspace.record_count().to_string())
+        );
+    } else {
+        println!(
+            "  {} not found: {}",
+            theme::yellow().paint("warning:"),
+            theme::text().paint(name)
+        );
+    }
+    println!();
+    Ok(())
+}
+
 fn cmd_measure_export_missing(args: &[&str]) -> Result<()> {
     let field = args.first().copied().unwrap_or("description");
     let guard = measure_workspace_cell()
@@ -2722,7 +2936,7 @@ fn cmd_picker() -> Result<()> {
         "view         — browse template variables",
         "save         — create new template",
         "vars         — browse and inspect variables",
-        "measure      — load/list/show measures workspace",
+        "measure      — load/list/edit/validate measures workspace",
         "theme        — toggle light/dark",
         "e            — edit template or config",
         "here         — show current directory",
