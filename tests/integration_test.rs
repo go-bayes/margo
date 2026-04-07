@@ -168,7 +168,7 @@ fn test_grf_study_toml_has_standard_baseline_vars() {
 }
 
 #[test]
-fn test_grf_creates_setup_script_with_renv() {
+fn test_grf_creates_setup_script_with_rv() {
     let tmp = temp_dir();
     setup_config(&tmp);
 
@@ -179,14 +179,24 @@ fn test_grf_creates_setup_script_with_renv() {
         .output()
         .expect("failed to execute margo");
 
-    // check that src/00-setup.R was created with renv content
+    // check that src/00-setup.R was created with rv content
     let setup_path = tmp.path().join("src").join("00-setup.R");
     assert!(setup_path.exists(), "src/00-setup.R should exist");
 
     let setup_content = fs::read_to_string(&setup_path).expect("failed to read src/00-setup.R");
     assert!(
-        setup_content.contains("renv::init(bare = TRUE)"),
-        "00-setup.R should include renv initialisation by default"
+        setup_content.contains("system2(\"rv\""),
+        "00-setup.R should include rv setup by default"
+    );
+
+    // check that rproject.toml was generated
+    let rproject_path = tmp.path().join("rproject.toml");
+    assert!(rproject_path.exists(), "rproject.toml should exist");
+
+    let rproject_content = fs::read_to_string(&rproject_path).expect("failed to read rproject.toml");
+    assert!(
+        rproject_content.contains("margot"),
+        "rproject.toml should include margot dependency"
     );
 }
 

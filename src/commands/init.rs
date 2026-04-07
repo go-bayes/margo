@@ -119,8 +119,8 @@ pub fn grf_from_config(
     let pull_data_display = pull_data.display().to_string();
     let push_mods_display = push_mods_path.display().to_string();
 
-    // check renv setting (default to true)
-    let use_renv = config.use_renv.unwrap_or(true);
+    // check rv setting (default to true)
+    let use_rv = config.use_rv.unwrap_or(true);
 
     println!(
         "{} GRF project '{}'",
@@ -136,7 +136,7 @@ pub fn grf_from_config(
         exposure,
         &baseline_vars,
         &outcome_vars,
-        use_renv,
+        use_rv,
     );
 
     for (filename, content) in files {
@@ -344,7 +344,7 @@ pub fn grf_event_from_config(
 
     let pull_data_display = pull_data.display().to_string();
     let push_mods_display = push_mods_path.display().to_string();
-    let use_renv = config.use_renv.unwrap_or(true);
+    let use_rv = config.use_rv.unwrap_or(true);
 
     println!(
         "{} GRF Event Study project '{}'",
@@ -368,7 +368,7 @@ pub fn grf_event_from_config(
         outcome_var,
         outcome_waves,
         reference_wave,
-        use_renv,
+        use_rv,
     );
 
     for (filename, content) in files {

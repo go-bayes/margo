@@ -50,10 +50,11 @@ margo --help
 ```
 my-study/
 ├── study.toml          # configuration (edit this first)
+├── rproject.toml       # rv dependency manifest
 ├── README.md           # workflow documentation
 ├── .gitignore          # excludes data files
 └── src/
-    ├── 00-setup.R       # project setup (renv, dependencies)
+    ├── 00-setup.R       # project setup (rv, dependencies)
     ├── 01-data-prep.R   # data wrangling, binary exposure
     ├── 02-wide-format.R # long→wide, two-stage IPCW weights
     ├── 03-causal-forest.R # GRF estimation, ATE plots
@@ -94,7 +95,7 @@ Then run scripts in order: `src/01-data-prep.R`, `src/02-wide-format.R`, etc.
 ## Requirements
 
 - R >= 4.0
-- renv package manager: https://rstudio.github.io/renv/
+- rv package manager: https://github.com/jColumn/rv
 
 Run `src/00-setup.R` to install `margot` and the project dependencies.
 

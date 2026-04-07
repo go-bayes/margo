@@ -5,6 +5,13 @@ Notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.15] - 2026-04-05
+
+### Changed
+- replaced renv with rv for reproducible environment management in generated projects
+- generated projects now include `rproject.toml` for rv dependency tracking
+- `use_renv` config option renamed to `use_rv` (still accepts `use_renv` for backward compatibility)
+
 ## [0.3.14] - 2026-03-03
 
 ### Added
@@ -13,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Measures documentation: quickstart and command reference under `docs/measures/`
 
 ### Changed
-- README now links to measures workspace documentation
+c- README now links to measures workspace documentation
 - Measures workspace now supports deterministic serialisation and source-aware format handling
 
 ### Fixed
@@ -272,3 +279,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `study.toml` configuration template
 - 8 R scripts (01-data-prep through 08-plots)
 - README and .gitignore generation
+
+
+
+

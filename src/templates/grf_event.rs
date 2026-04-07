@@ -9,12 +9,12 @@ use super::{format_string_array, format_var_array};
 
 #[allow(dead_code)]
 pub fn get_template_files(project_name: &str) -> Vec<(String, String)> {
-    let use_renv = true;
-    vec![
+    let use_rv = true;
+    let mut files = vec![
         ("study.toml".to_string(), study_toml(project_name)),
-        ("README.md".to_string(), readme(project_name, use_renv)),
-        (".gitignore".to_string(), gitignore()),
-        ("src/00-setup.R".to_string(), script_00(use_renv)),
+        ("README.md".to_string(), readme(project_name, use_rv)),
+        (".gitignore".to_string(), gitignore(use_rv)),
+        ("src/00-setup.R".to_string(), script_00(use_rv)),
         ("src/01-data-prep.R".to_string(), script_01()),
         ("src/02-wide-format.R".to_string(), script_02()),
         ("src/03-causal-forest.R".to_string(), script_03()),
@@ -22,7 +22,11 @@ pub fn get_template_files(project_name: &str) -> Vec<(String, String)> {
         ("src/05-heterogeneity.R".to_string(), script_05()),
         ("src/06-positivity.R".to_string(), script_06()),
         ("src/07-tables.R".to_string(), script_07()),
-    ]
+    ];
+    if use_rv {
+        files.push(("rproject.toml".to_string(), rproject_toml(project_name)));
+    }
+    files
 }
 
 /// get template files with config values pre-filled
@@ -35,9 +39,9 @@ pub fn get_template_files_with_config(
     outcome_var: &str,
     outcome_waves: &[String],
     reference_wave: &str,
-    use_renv: bool,
+    use_rv: bool,
 ) -> Vec<(String, String)> {
-    vec![
+    let mut files = vec![
         ("study.toml".to_string(), study_toml_configured(
             project_name,
             pull_data,
@@ -48,9 +52,9 @@ pub fn get_template_files_with_config(
             outcome_waves,
             reference_wave,
         )),
-        ("README.md".to_string(), readme(project_name, use_renv)),
-        (".gitignore".to_string(), gitignore()),
-        ("src/00-setup.R".to_string(), script_00(use_renv)),
+        ("README.md".to_string(), readme(project_name, use_rv)),
+        (".gitignore".to_string(), gitignore(use_rv)),
+        ("src/00-setup.R".to_string(), script_00(use_rv)),
         ("src/01-data-prep.R".to_string(), script_01()),
         ("src/02-wide-format.R".to_string(), script_02()),
         ("src/03-causal-forest.R".to_string(), script_03()),
@@ -58,7 +62,11 @@ pub fn get_template_files_with_config(
         ("src/05-heterogeneity.R".to_string(), script_05()),
         ("src/06-positivity.R".to_string(), script_06()),
         ("src/07-tables.R".to_string(), script_07()),
-    ]
+    ];
+    if use_rv {
+        files.push(("rproject.toml".to_string(), rproject_toml(project_name)));
+    }
+    files
 }
 
 /// generate study.toml with config values pre-filled
@@ -284,14 +292,14 @@ ribbon_alpha = 0.2
     )
 }
 
-fn readme(project_name: &str, use_renv: bool) -> String {
-    let setup_section = if use_renv {
+fn readme(project_name: &str, use_rv: bool) -> String {
+    let setup_section = if use_rv {
         r#"
 ## Getting started
 
-1. Install renv: https://rstudio.github.io/renv/
+1. Install rv: https://github.com/jColumn/rv
 2. Open R in this project directory
-3. Run `source("src/00-setup.R")` to initialise renv and install dependencies
+3. Run `source("src/00-setup.R")` to activate rv and install dependencies
 4. Edit `study.toml` with your study-specific settings
 5. Run scripts in order: src/01, src/02, src/03...
 "#
@@ -304,16 +312,16 @@ fn readme(project_name: &str, use_renv: bool) -> String {
 "#
     };
 
-    let setup_label = if use_renv {
-        "project setup (renv, dependencies)"
+    let setup_label = if use_rv {
+        "project setup (rv, dependencies)"
     } else {
         "project setup (dependencies)"
     };
 
-    let requirements = if use_renv {
+    let requirements = if use_rv {
         r#"- R >= 4.0
-- renv package manager: https://rstudio.github.io/renv/
-- margot package (installed via renv in `src/00-setup.R`)"#
+- rv package manager: https://github.com/jColumn/rv
+- margot package (installed via rv in `src/00-setup.R`)"#
     } else {
         r#"- R >= 4.0
 - margot package (installed in `src/00-setup.R`)"#
@@ -364,8 +372,15 @@ Edit `study.toml` with your study-specific settings:
     )
 }
 
-fn gitignore() -> String {
-    r####"# data files
+fn gitignore(use_rv: bool) -> String {
+    let env_section = if use_rv {
+        "# rv (library is also gitignored by rv/.gitignore)\nrv/library/"
+    } else {
+        "# renv\nrenv/library/\nrenv/staging/\nrenv/local/"
+    };
+
+    format!(
+        r####"# data files
 *.qs
 *.rds
 *.csv
@@ -382,10 +397,7 @@ fn gitignore() -> String {
 *.png
 *.html
 
-# renv
-renv/library/
-renv/staging/
-renv/local/
+{env_section}
 
 # IDE
 .Rproj.user/
@@ -394,22 +406,22 @@ renv/local/
 # OS
 .DS_Store
 Thumbs.db
-"####
-    .to_string()
+"####,
+        env_section = env_section
+    )
 }
 
-fn script_00(use_renv: bool) -> String {
-    if use_renv {
-        r####"# 00-setup.R
-# project setup: initialise renv and install dependencies
-# generated by margo
-# run this script once when starting the project
+fn rproject_toml(project_name: &str) -> String {
+    format!(
+        r####"[project]
+name = "{project_name}"
+r_version = "4.5"
 
-if (!requireNamespace("renv", quietly = TRUE)) install.packages("renv")
+repositories = [
+    {{ alias = "PPM", url = "https://packagemanager.posit.co/cran/latest" }},
+]
 
-if (!file.exists("renv.lock")) {
-  renv::init(bare = TRUE)
-  renv::install(c(
+dependencies = [
     "tidyverse",
     "qs",
     "here",
@@ -434,15 +446,39 @@ if (!file.exists("renv.lock")) {
     "future",
     "furrr",
     "policytree",
-    "devtools"
-  ))
-  renv::install("go-bayes/margot")
-  renv::snapshot()
-} else {
-  renv::restore()
+    "devtools",
+    {{ name = "margot", git = "https://github.com/go-bayes/margot.git" }},
+]
+"####,
+        project_name = project_name
+    )
 }
 
-cli::cli_alert_success("setup complete - renv environment ready")
+fn script_00(use_rv: bool) -> String {
+    if use_rv {
+        r####"# 00-setup.R
+# project setup: activate rv environment and install dependencies
+# generated by margo
+# run this script once when starting the project
+
+# check rv is installed
+if (!nzchar(Sys.which("rv"))) {
+  stop("rv is not installed. install from: https://github.com/jColumn/rv")
+}
+
+# activate rv (creates .Rprofile and rv/ scaffolding)
+if (!file.exists("rv/scripts/activate.R")) {
+  system2("rv", "activate", stdout = TRUE, stderr = TRUE)
+}
+
+# sync packages from rproject.toml
+status <- system2("rv", "sync", stdout = TRUE, stderr = TRUE)
+cat(status, sep = "\n")
+
+# activate library in current session
+source("rv/scripts/activate.R")
+
+cli::cli_alert_success("setup complete - rv environment ready")
 cli::cli_alert_info("next: edit study.toml then run src/01-data-prep.R")
 "####
         .to_string()
