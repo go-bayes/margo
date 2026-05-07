@@ -1,10 +1,16 @@
 use std::path::PathBuf;
 
 mod data {
-    #[path = "../src/data/measures.rs"]
-    pub mod measures;
-    #[path = "../src/data/measure_workspace.rs"]
-    pub mod measure_workspace;
+    pub mod measures {
+        include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/data/measures.rs"));
+    }
+
+    pub mod measure_workspace {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/data/measure_workspace.rs"
+        ));
+    }
 }
 
 use data::measure_workspace::MeasureWorkspace;

@@ -143,16 +143,24 @@ pub fn infer_measure_file_format(path: &Path) -> MeasureFileFormat {
         .map(|value| value.to_ascii_lowercase())
         .unwrap_or_default();
 
-    if file_name == "boilerplate_unified.json" {
+    if file_name == "boilerplate_unified.json" || file_name.starts_with("boilerplate_unified.") {
         return MeasureFileFormat::BoilerplateUnifiedJson;
     }
-    if file_name == "measures_db.json" {
+    if file_name == "measures_db.json" || file_name.starts_with("measures_db.") {
         return MeasureFileFormat::MeasuresDbJson;
     }
-    if file_name == "variable_metadata.tsv" || file_name == "variables.tsv" {
+    if file_name == "variable_metadata.tsv"
+        || file_name == "variables.tsv"
+        || (file_name.starts_with("variable_metadata.") && file_name.ends_with(".tsv"))
+        || (file_name.starts_with("variables.") && file_name.ends_with(".tsv"))
+    {
         return MeasureFileFormat::VariableMetadataTsv;
     }
-    if file_name == "variable_metadata.csv" || file_name == "variables.csv" {
+    if file_name == "variable_metadata.csv"
+        || file_name == "variables.csv"
+        || (file_name.starts_with("variable_metadata.") && file_name.ends_with(".csv"))
+        || (file_name.starts_with("variables.") && file_name.ends_with(".csv"))
+    {
         return MeasureFileFormat::VariableMetadataCsv;
     }
     if file_name.ends_with(".tsv") {
