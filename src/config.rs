@@ -190,12 +190,13 @@ impl Config {
 # set your paths here, then run: /init in margo
 
 [paths]
-# where your .qs data files are stored (read from)
-# pull_data = "/path/to/nzavs-data"
+# directory containing source data (read-only)
+# GRF scaffolds expect an Arrow source object such as nzavs_arrow
+# pull_data = "/path/to/source-data-directory"
 
 # base directory for model outputs (written to)
-# a project subfolder will be created: {push_mods}/2025-exposure-outcomes/
-# push_mods = "/path/to/outputs"
+# a project subfolder will be created, for example: {push_mods}/study-name/
+# push_mods = "/path/to/outputs/2026"
 
 [defaults]
 # default baseline template (from ~/.config/margo/baselines/)
@@ -976,6 +977,14 @@ use_renv = true
     fn test_empty_returns_default() {
         let config = Config::parse("");
         assert!(config.pull_data.is_none());
+    }
+
+    #[test]
+    fn test_default_config_uses_arrow_source_directory_language() {
+        let content = Config::default_config_content();
+        assert!(!content.contains(".qs"));
+        assert!(content.contains("directory containing source data"));
+        assert!(content.contains("nzavs_arrow"));
     }
 
     #[test]

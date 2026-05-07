@@ -17,6 +17,9 @@ Current GRF scaffold state:
   controlled by `paths.source_arrow_name` in `study.toml`.
 - Saved analysis objects use explicit `margot::here_save()` /
   `margot::here_read()` calls with `paths.push_mods`.
+- Local user config may contain private machine paths, but public repo
+  defaults and docs should use generic placeholders and should not mention
+  private paths.
 - The GRF event-study scaffold has not yet received the same cleanup and
   still needs review for `qs`, `pacman`, output contracts, and audit outputs.
 

@@ -5,6 +5,12 @@ Notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.17] - 2026-05-07
+
+### Changed
+- Default config template now describes `pull_data` as a source-data directory for Arrow imports instead of a `.qs` data location.
+- Default config comments now show year-scoped output roots such as `/path/to/outputs/2026`.
+
 ## [0.3.16] - 2026-05-07
 
 ### Added
@@ -294,6 +300,5 @@ c- README now links to measures workspace documentation
 - `study.toml` configuration template
 - 8 R scripts (01-data-prep through 08-plots)
 - README and .gitignore generation
-
 
 
