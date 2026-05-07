@@ -70,6 +70,7 @@ fn test_grf_creates_all_expected_files() {
         "study.toml",
         "README.md",
         ".gitignore",
+        "src/00-preflight.R",
         "src/00-setup.R",
         "src/01-data-prep.R",
         "src/02-wide-format.R",
@@ -197,6 +198,88 @@ fn test_grf_creates_setup_script_with_rv() {
     assert!(
         rproject_content.contains("margot"),
         "rproject.toml should include margot dependency"
+    );
+    assert!(
+        !rproject_content.contains("\"qs\""),
+        "rproject.toml should not include qs"
+    );
+}
+
+#[test]
+fn test_grf_scripts_use_preflight_not_pacman_or_qs() {
+    let tmp = temp_dir();
+    setup_config(&tmp);
+
+    Command::new(margo_bin())
+        .args(["init", "grf", "test_exposure"])
+        .current_dir(tmp.path())
+        .env("HOME", tmp.path())
+        .output()
+        .expect("failed to execute margo");
+
+    let preflight_path = tmp.path().join("src").join("00-preflight.R");
+    let preflight = fs::read_to_string(&preflight_path).expect("failed to read preflight");
+    assert!(
+        preflight.contains("Missing required R package(s)"),
+        "preflight should report missing packages clearly"
+    );
+    assert!(
+        preflight.contains("check_required_objects"),
+        "preflight should include object contract checks"
+    );
+
+    for script in [
+        "src/01-data-prep.R",
+        "src/02-wide-format.R",
+        "src/03-causal-forest.R",
+        "src/04-heterogeneity.R",
+        "src/05-policy-tree.R",
+        "src/06-positivity.R",
+        "src/07-tables.R",
+        "src/08-plots.R",
+    ] {
+        let content = fs::read_to_string(tmp.path().join(script)).expect("failed to read script");
+        assert!(
+            content.contains("00-preflight.R"),
+            "{script} should source the shared preflight"
+        );
+        assert!(
+            !content.contains("pacman::p_load"),
+            "{script} should not use pacman auto-install loading"
+        );
+        assert!(
+            !content.contains("here_read_qs") && !content.contains("here_save_qs"),
+            "{script} should not use qs helpers"
+        );
+        assert!(
+            !content.contains(" qs,") && !content.contains("\"qs\""),
+            "{script} should not request qs"
+        );
+    }
+}
+
+#[test]
+fn test_grf_study_toml_declares_arrow_source() {
+    let tmp = temp_dir();
+    setup_config(&tmp);
+
+    Command::new(margo_bin())
+        .args(["init", "grf", "test_exposure"])
+        .current_dir(tmp.path())
+        .env("HOME", tmp.path())
+        .output()
+        .expect("failed to execute margo");
+
+    let toml_path = tmp.path().join("study.toml");
+    let content = fs::read_to_string(&toml_path).expect("failed to read study.toml");
+    let parsed: toml::Table = content.parse().expect("study.toml is not valid TOML");
+    let paths = parsed.get("paths").expect("missing paths section");
+    assert_eq!(
+        paths
+            .get("source_arrow_name")
+            .and_then(|value| value.as_str()),
+        Some("nzavs_arrow"),
+        "study.toml should declare the source Arrow object name"
     );
 }
 
