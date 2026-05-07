@@ -23,6 +23,34 @@ Current GRF scaffold state:
 - The GRF event-study scaffold has not yet received the same cleanup and
   still needs review for `qs`, `pacman`, output contracts, and audit outputs.
 
+Reproducibility track:
+
+- Treat `use_rv = true` as dependency-helper scaffolding, not as a guarantee
+  that a generated project is fully reproducible across R versions, package
+  deletion, system-library state, or local operating-system preferences.
+- Generated workflows should still expose clear package preflight errors and
+  runnable scripts for users who manage R packages manually.
+- Full reproducibility should be a later hardening track. It needs explicit
+  review of R version pinning, `rig`, package-cache repair, system
+  requirements, and recovery from broken local package states.
+- Do not let analysis generation depend on `rv` being perfect. The analysis
+  contract should remain visible in the scripts and `study.toml`.
+
+Naming track:
+
+- `pull_data` and `push_mods` are legacy `margo` config names. Keep them
+  backward-compatible for existing projects.
+- New public notes and future schemas should avoid pull/push language.
+  Prefer direction-neutral directory names that say what the path contains.
+- In future `mo` R functions, prefer snake-case directory-path arguments such
+  as `source_data_dir_path`, `output_dir_path`, `model_dir_path`, and
+  `audit_dir_path`.
+- In future TOML schemas, prefer concise directory keys such as
+  `source_data_dir`, `output_dir`, `model_dir`, and `audit_dir`.
+- When `margo` eventually supports these names, accept both the new and
+  legacy keys for a transition period and write generated files with the new
+  names.
+
 Workflow defaults to preserve:
 
 - Generate sourceable R chunks with clear contracts between scripts.
@@ -59,7 +87,7 @@ Checklist:
 2. Allow users to choose cut points for continuous vars when creating binary versions. (YES, this is in the script: we might need to reveal histogram for this to make sense? -- suggest it go into the validation cli)
 3. Plan extensibility for time-varying confounders in the framework (as part of TMLE/lmtp)
 4. Enable confounders from the same wave as exposure when exposure cannot affect them. (lmtp)
-5. Add a helper that warns when `paths.pull_data` points at a file instead of a directory.
+5. Add a helper that warns when legacy `paths.pull_data` or future source-data directory fields point at a file instead of a directory.
 6. Add `/vars export-missing` to print variables with no metadata description.
 7. Add richer `/vars` metadata support (`label`, `scale`, `notes`) beyond a single description field.
 

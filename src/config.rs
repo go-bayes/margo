@@ -202,8 +202,9 @@ impl Config {
 # default baseline template (from ~/.config/margo/baselines/)
 # baselines = "default"
 
-# include rv setup in generated R scripts (recommended for reproducibility)
-# set to false if you manage R environments differently
+# include rv helper files in generated projects
+# this declares dependencies, but is not a complete reproducibility guarantee
+# set to false if you manage R environments manually or with another tool
 use_rv = true
 
 [editor]

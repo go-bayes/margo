@@ -72,8 +72,10 @@ Edit `study.toml` with your study-specific settings:
 
 ```toml
 [paths]
+# legacy margo key for the source-data directory
 pull_data = "/path/to/your/source/data"
 source_arrow_name = "nzavs_arrow"
+# legacy margo key for the output directory
 push_mods = "/path/to/your/output/directory"
 
 [waves]
@@ -94,12 +96,20 @@ vars = ["age", "male_binary", "education_level_coarsen"]
 
 Then run scripts in order: `src/01-data-prep.R`, `src/02-wide-format.R`, etc.
 
+The `pull_data` and `push_mods` names are retained for existing `margo`
+projects. Future workflow schemas should use clearer directory names such as
+`source_data_dir` and `output_dir`, with R function arguments named
+`source_data_dir_path` and `output_dir_path`.
+
 ## Requirements
 
 - R >= 4.0
 - rv package manager: https://github.com/jColumn/rv
 
-Run `src/00-setup.R` to install `margot` and the project dependencies.
+Run `src/00-setup.R` to install `margot` and the project dependencies. The
+generated `rv` files declare dependencies, but they are not a complete
+reproducibility guarantee across R versions, system libraries, package-cache
+state, or local operating-system settings.
 
 ## Measures workspace docs
 

@@ -5,6 +5,12 @@ Notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.18] - 2026-05-07
+
+### Changed
+- Default config comments now describe `use_rv` as dependency-helper scaffolding rather than a full reproducibility guarantee.
+- Planning notes now mark `pull_data` and `push_mods` as legacy margo config names and point future `mo`-oriented APIs toward explicit directory-path naming.
+
 ## [0.3.17] - 2026-05-07
 
 ### Changed
@@ -300,5 +306,4 @@ c- README now links to measures workspace documentation
 - `study.toml` configuration template
 - 8 R scripts (01-data-prep through 08-plots)
 - README and .gitignore generation
-
 
