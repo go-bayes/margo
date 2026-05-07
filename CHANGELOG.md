@@ -5,6 +5,21 @@ Notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.16] - 2026-05-07
+
+### Added
+- GRF scaffolds now include `src/00-preflight.R` for shared package, path, output-directory, and saved-object checks.
+- GRF integration tests now assert that generated scripts use the preflight layer, declare the Arrow source object, and avoid `qs`, `here_read_qs()`, `here_save_qs()`, and `pacman::p_load()`.
+
+### Changed
+- GRF scaffolds now read source data with `margot::here_read_arrow()` using `paths.source_arrow_name`, defaulting to `nzavs_arrow`.
+- Generated GRF scripts now use explicit `margot::here_save()` / `margot::here_read()` calls with `paths.push_mods`.
+- Generated GRF `rproject.toml` now includes `arrow` and `fs`, and no longer includes `qs`.
+
+### Fixed
+- Measure fixture loading now recognises fixture-style filenames such as `boilerplate_unified.sample.json` and `measures_db.sample.json`.
+- `tests/measures_workspace.rs` now loads source modules in a way that preserves the expected `super::measures` namespace during integration tests.
+
 ## [0.3.15] - 2026-04-05
 
 ### Changed
@@ -279,7 +294,6 @@ c- README now links to measures workspace documentation
 - `study.toml` configuration template
 - 8 R scripts (01-data-prep through 08-plots)
 - README and .gitignore generation
-
 
 
 

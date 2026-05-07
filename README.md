@@ -54,6 +54,7 @@ my-study/
 ├── README.md           # workflow documentation
 ├── .gitignore          # excludes data files
 └── src/
+    ├── 00-preflight.R   # shared package, path, and saved-object checks
     ├── 00-setup.R       # project setup (rv, dependencies)
     ├── 01-data-prep.R   # data wrangling, binary exposure
     ├── 02-wide-format.R # long→wide, two-stage IPCW weights
@@ -72,6 +73,7 @@ Edit `study.toml` with your study-specific settings:
 ```toml
 [paths]
 pull_data = "/path/to/your/source/data"
+source_arrow_name = "nzavs_arrow"
 push_mods = "/path/to/your/output/directory"
 
 [waves]

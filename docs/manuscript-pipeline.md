@@ -3,6 +3,13 @@
 Design document for `margo init --manuscript`, a scaffolding command that
 standardises Quarto manuscript production for causal inference projects.
 
+Status note, 2026-05-07: this remains planning, not implemented. It should
+follow the current workflow defaults: no `qs`/`qs2`, no hidden saving inside
+functions, model/result objects read with `margot::here_read()` from the
+configured output directory, and plots regenerated from saved model objects
+inside result scripts or Quarto documents. Public scaffolds must avoid
+private filesystem paths and private study shorthand.
+
 ## Problems to solve
 
 ### Duplicated boilerplate
@@ -102,7 +109,7 @@ latex_modules = ["core", "causal-notation"]   # opt-in from modular headers
 pdf_engine = "lualatex"
 
 # analysis link
-results_path = "../saved-results/"   # where setup.R loads .qs files from
+results_path = "../saved-results/"   # where setup.R loads saved result objects
 ```
 
 Fields not specified fall back to defaults in `~/.config/margo/config.toml`.
@@ -201,12 +208,12 @@ journal submissions.
 
 ### setup.R generation
 
-The existing GRF templates generate eight numbered R scripts. The
-manuscript variant generates a single `setup.R` that:
+The existing GRF template generates a preflight script plus eight numbered R
+scripts. The manuscript variant should generate a single `setup.R` that:
 
-1. Loads packages (margot, ggplot2, kableExtra, tinytable, qs)
+1. Loads packages (margot, ggplot2, kableExtra, tinytable, RcppTOML)
 2. Reads `study.toml` for `results_path`
-3. Loads saved `.qs` result objects
+3. Loads saved result objects with `margot::here_read()`
 4. Defines formatting helpers (`pretty_int()`, `format_effect()`,
    `style_manuscript_table()`)
 5. Builds table and plot objects ready for inline reference in QMD

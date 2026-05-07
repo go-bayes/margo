@@ -1,3 +1,49 @@
+## Current orientation
+
+As of 2026-05-07, `margo` is still the scaffold generator and interactive
+helper for `margot`-based workflows. The immediate design pressure comes
+from private `epic-models` audits, especially multi-wave LMTP and three-wave
+GRF workflows. Public `margo` notes should describe general workflow
+decisions and avoid private study names, local filesystem paths, or
+person-specific shorthand.
+
+Current GRF scaffold state:
+
+- `margo init grf` now generates a shared `src/00-preflight.R` layer.
+- Generated GRF scripts should fail with clear missing-package messages.
+- Generated GRF scripts should not use `qs`, `here_read_qs()`,
+  `here_save_qs()`, or `pacman::p_load()`.
+- Source data import is Arrow-based through `margot::here_read_arrow()`,
+  controlled by `paths.source_arrow_name` in `study.toml`.
+- Saved analysis objects use explicit `margot::here_save()` /
+  `margot::here_read()` calls with `paths.push_mods`.
+- The GRF event-study scaffold has not yet received the same cleanup and
+  still needs review for `qs`, `pacman`, output contracts, and audit outputs.
+
+Workflow defaults to preserve:
+
+- Generate sourceable R chunks with clear contracts between scripts.
+- Create labels and reusable metadata once, early in the workflow.
+- Prefer one canonical analysis data frame over hand-built domain-specific
+  data frames.
+- Generate human-readable audit outputs, especially missingness structure and
+  cut-point checks before estimation.
+- For GRF manuscripts, make average treatment effect and policy-tree reporting
+  the main path; keep RATE/Qini results in appendices unless explicitly
+  requested.
+- For future publication scaffolds, generate a minimal `setup.R`,
+  `manuscript.qmd`, and `supplement.qmd` that read saved model/result objects
+  and regenerate plots rather than saving plot artefacts as workflow state.
+
+Immediate next implementation questions:
+
+1. Bring `grf-event` in line with the cleaned GRF scaffold.
+2. Decide whether publication scaffolding is a separate command or an option
+   attached to `margo init grf`.
+3. Add a general study-validation command before investing in a richer TUI.
+4. Keep LMTP schema work in private workflow notes until the multi-wave
+   realisation is stable enough to make public.
+
 ## Short term questions
 Checklist:
 
